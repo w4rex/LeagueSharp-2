@@ -30,6 +30,7 @@ namespace Ziggs
         private static string wObj = "ZiggsW_mis_ground.troy";              //Well, W object, as is
         private static Menu menu;                                           //Menu! (@_@ )
         private static Orbwalking.Orbwalker SOW;                            //SOW! (^_^ )
+        private static float aaRange = Orbwalking.GetRealAutoAttackRange(player);
         //(?)List of damage sources to calc
         private static readonly List<Tuple<DamageLib.SpellType, DamageLib.StageType>> mainCombo = new List<Tuple<DamageLib.SpellType, DamageLib.StageType>>();
 
@@ -56,7 +57,7 @@ namespace Ziggs
             //SetSkillshot(float delay, float width, float speed, bool collision, SkillshotType type, Vector3 from = null, Vector3 rangeCheckFrom = null);
             Q1.SetSkillshot(0.3f,            130, 1700, false, SkillshotType.SkillshotCircle);
             Q2.SetSkillshot(0.25f + Q1.Delay,130, 1700, false, SkillshotType.SkillshotCircle);
-            Q3.SetSkillshot(0.3f + Q2.Delay, 130, 1700, false, SkillshotType.SkillshotCircle);
+            Q3.SetSkillshot(0.30f + Q2.Delay,130, 1700, false, SkillshotType.SkillshotCircle);
             W.SetSkillshot(0.250f,           275, 1800, false, SkillshotType.SkillshotCircle);
             E.SetSkillshot(0.700f,           235, 2700, false, SkillshotType.SkillshotCircle);
             R.SetSkillshot(1.014f,           525, 1750, false, SkillshotType.SkillshotCircle);
@@ -141,7 +142,7 @@ namespace Ziggs
         /// <param name="args"></param>
         private static void Drawing_OnDraw(EventArgs args)
         {
-
+            Drawing.DrawText(250, 250, Color.PaleVioletRed, isInDanger(SimpleTs.GetTarget(Q1.Range, SimpleTs.DamageType.Magical)).ToString());
         }
         /// <summary>
         /// Anti-gapcloser
@@ -151,7 +152,11 @@ namespace Ziggs
         {
             if (W.IsReady() && menu.SubMenu("misc").Item("antigapcloser").GetValue<bool>())
             {
-                W.Cast(gapcloser.Sender, true); //TODO: разные интеррапты для лисинов\джарванов\леон
+                if (gapcloser.SkillType == GapcloserType.Skillshot)
+                    W.Cast(gapcloser.End, true); //TODO: разные интеррапты для лисинов\джарванов\леон
+                else//Проверить работоспособность на разных гепклозерах
+                    //W.Cast(gapcloser.Sender);
+                Wmode = WModes.ANTIGAPCLOSER;
             }
         }
         /// <summary>
@@ -161,7 +166,10 @@ namespace Ziggs
         /// <param name="spell">Spell that can be interrupted</param>
         private static void Interrupter_OnPosibleToInterrupt(Obj_AI_Base unit, InterruptableSpell spell)
         {
-            if (W.IsReady() && Vector3.Distance(player.Position, unit.Position) <= -1 + W.Range + W.Width / 2 && menu.SubMenu("misc").Item("interrupt").GetValue<bool>())
+            if (W.IsReady() &&
+                Vector3.Distance(player.Position, unit.Position) <= -1 + W.Range + W.Width / 2 &&
+                menu.SubMenu("misc").Item("interrupt").GetValue<bool>() &&
+                spell.DangerLevel <= menu.SubMenu("misc").Item("interrupt").GetValue<InterruptableDangerLevel>())
             {
                 Vector3 pos = V3E(player.Position, unit.Position, -1 + Vector3.Distance(player.Position, unit.Position) - W.Width/2);
                 W.Cast(pos, true);
@@ -258,7 +266,10 @@ namespace Ziggs
             Menu misc = new Menu("Misc", "misc");
             menu.AddSubMenu(misc);
             misc.AddItem(new MenuItem("interrupt", "Interrupt spells").SetValue(true));
+            misc.AddItem(new MenuItem("interruptLevel", "Interrupt only with danger level").SetValue<InterruptableDangerLevel>(InterruptableDangerLevel.Medium));
             misc.AddItem(new MenuItem("antigapcloser", "Anti-Gapscloser").SetValue(true));
+            misc.AddItem(new MenuItem("GETOVERHERE", "Try to throw enemy closer in combo").SetValue(true));
+            misc.AddItem(new MenuItem("GTFO", "Previous depend on danger level").SetValue(true));
 
             // Drawings
             Menu drawings = new Menu("Drawings", "drawings");
@@ -270,6 +281,45 @@ namespace Ziggs
 
             // Finalize menu
             menu.AddToMainMenu();
+        }
+        /// <summary>
+        /// Return danger level dependable on environment
+        /// </summary>
+        /// <param name="target"></param>
+        /// <returns></returns>
+        private static dangerLevelModes isInDanger(Obj_AI_Hero target)
+        {
+            float tRange = Orbwalking.GetRealAutoAttackRange(target);
+            if(aaRange*1.2 <= tRange 
+                && player.Health*1.2 < target.Health &&
+                !isCooldown(new List<Spell>(){Q1, W}))
+                return dangerLevelModes.ABLE;
+            if (aaRange*1.2 <= tRange && 
+                player.Health*1.4 <= target.Health &&
+                !isCooldown(new List<Spell>() { Q1, W, E }))
+                return dangerLevelModes.ABLE;
+            if (aaRange*0.9 <= tRange &&
+                player.Health * 1.4 <= target.Health &&
+                !isCooldown(new List<Spell>() { Q1, W}))
+                return dangerLevelModes.WARNING;
+            if (aaRange * 0.9 <= tRange &&
+                player.Health * 1.7 <= target.Health &&
+                !isCooldown(new List<Spell>() { Q1, W }))
+                return dangerLevelModes.EXTREMELY;
+           return dangerLevelModes.NONE;
+        }
+        /// <summary>
+        /// Is spells on cooldown
+        /// </summary>
+        /// <param name="spells"></param>
+        /// <returns></returns>
+        private static bool isCooldown(List<Spell> spells)
+        {
+            foreach(Spell spell in spells)
+            {
+                if (!spell.IsReady()) return true;
+            }
+            return false;
         }
         /// <summary>
         /// Get Vector3 position in direction by distance
