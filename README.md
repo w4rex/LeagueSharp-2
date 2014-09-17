@@ -1,5 +1,5 @@
 LeagueSharp
 ===========
-I lied. No assemblies here :D
-
+Ziggs incoming. 
+And someone. Ask OPs for my unbann in IRC ( -_-)
 Soon. ™
