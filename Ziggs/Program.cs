@@ -2,13 +2,22 @@
 using LeagueSharp;
 using LeagueSharp.Common;
 using System.Collections.Generic;
-
 using SharpDX;
 
 using Color = System.Drawing.Color;
 
 //// Half of this stolen from Hellsing's code :* \\
-
+/* 
+ * TODO:
+ * Комбо: Q+W+E, R - как и в БОЛе
+ * Smart W - аналогично ///Готово - ПРОВЕРИТЬ
+ * Objective steal
+ * Проверка всех интерраптов и гепклозеров ///ПРОВЕРИТЬ
+ * Игнайт
+ * Item update
+ * Harass
+*/
+ 
 namespace Ziggs
 {
     class Program
@@ -18,25 +27,25 @@ namespace Ziggs
         private static Spell Q1, Q2, Q3, W, E, R;                           //Spells
         private static readonly List<Spell> spellList = new List<Spell>();  //Spell list (for?)
         private static bool DOTReady, TFMode, igniteCheck, wIsSet = false;  //Ignite, TeamFightMode, has ignite, does W exist
-        private static enum beingFocusedModes { NONE, TURRET, CHAMPION };        //Being focused by
-        private static enum dangerLevelModes { NONE, ABLE, WARNING, EXTREMELY }; //Decision making
-        private static enum escapeModes { TOMOUSE, FROMTURRET, AWAY }       //Escape to mouse, escape away from turret, escape from dangerous spell
-        private static enum WModes { NONE, INTERRUPTOR, ANTIGAPCLOSER, ESCAPE }            //Modes of second W cast
+        private enum beingFocusedModes { NONE, TURRET, CHAMPION };        //Being focused by
+        private enum escapeModes { TOMOUSE, FROMTURRET }       //Escape to mouse, escape away from turret
+        private enum WModes { NONE, INTERRUPTOR, ANTIGAPCLOSER, ESCAPE, COMBAT }            //Modes of second W cast
         private static beingFocusedModes beingFocusedBy;
-        private static dangerLevelModes dangerLevel;
         private static escapeModes escapeMode;
         private static WModes Wmode;
-        private static Vector3 escapePos, TUnit, wPos;                      //Position to escape from focus, TurretUnitPosition, Explosive( W ) position
+        private static Vector3 escapePos,  wPos;                      //Position to escape from focus, TurretUnitPosition, Explosive( W ) position
+        private static TUnit TUnit_obj = new TUnit();
         private static string wObj = "ZiggsW_mis_ground.troy";              //Well, W object, as is
         private static Menu menu;                                           //Menu! (@_@ )
         private static Orbwalking.Orbwalker SOW;                            //SOW! (^_^ )
-        private static float aaRange = Orbwalking.GetRealAutoAttackRange(player);
+        private static Items.Item DFG = new Items.Item(3128, 750);          //DFG!!!!!!
+        
         //(?)List of damage sources to calc
         private static readonly List<Tuple<DamageLib.SpellType, DamageLib.StageType>> mainCombo = new List<Tuple<DamageLib.SpellType, DamageLib.StageType>>();
 
         static void Main(string[] args)
         {
-            CustomEvents.Game.OnGameLoad += Game_OnGameLoad;                // (?) OnGameLoad callback
+            CustomEvents.Game.OnGameLoad += Game_OnGameLoad;                // OnGameLoad callback
         }
         /// <summary>
         /// OnGameLoad callback. Executes on loading game
@@ -44,7 +53,7 @@ namespace Ziggs
         /// <param name="args"></param>
         private static void Game_OnGameLoad(EventArgs args)
         {
-            if (player.ChampionName != champName) return;                   //Champion validation. "Unload" on false
+            if (player.ChampionName != champName) return;                   //Champion validation
 
             //Spell init
             Q1 = new Spell(SpellSlot.Q, 850f);
@@ -88,6 +97,18 @@ namespace Ziggs
             Interrupter.OnPosibleToInterrupt += Interrupter_OnPosibleToInterrupt;
             GameObject.OnCreate += GO_OnCreate;
             GameObject.OnDelete += GO_OnRemove;
+            Game.OnGameProcessPacket += OnRecievePacket;
+        }
+        private static void OnRecievePacket(GamePacketEventArgs args)
+        {
+            if (PacketChannel.S2C == args.Channel && args.PacketData[0] == Packet.S2C.TowerAggro.Header)//Header checks
+            {
+                Packet.S2C.TowerAggro.Struct temp = Packet.S2C.TowerAggro.Decoded(args.PacketData);//Decode packet
+                if (temp.TargetNetworkId != player.NetworkId) return;
+                TUnit_obj.Position = ObjectManager.GetUnitByNetworkId<Obj_AI_Turret>(temp.TurretNetworkId).Position;//Get turret position
+                TUnit_obj.LastAggroTime = Game.Time;
+                TUnit_obj.isAggred = true;
+            }
         }
         /// <summary>
         /// Per tick
@@ -95,8 +116,6 @@ namespace Ziggs
         /// <param name="args"></param>
         private static void Game_OnGameUpdate(EventArgs args)
         {
-            ItemsUpdate();
-            WExploder();
             // Combo
             if (menu.SubMenu("combo").Item("Active").GetValue<KeyBind>().Active)
                 Combo();
@@ -108,6 +127,18 @@ namespace Ziggs
             // Wave clear
             if (menu.SubMenu("waveClear").Item("Active").GetValue<KeyBind>().Active)
                 LaneClear();
+
+            if (menu.SubMenu("misc").Item("MAKEMETHEHELLOUTTAHEREMAN").GetValue<KeyBind>().Active)
+                if (TUnit_obj.isAggred)
+                    Escape(escapeModes.FROMTURRET);
+                else
+                    Escape(escapeModes.TOMOUSE);
+            if (Game.Time - 8 > TUnit_obj.LastAggroTime) TUnit_obj.isAggred = false;//Ye, my awful english.
+            if (player.Spellbook.GetSpell(player.GetSpellSlot("SummonerDot")).Cooldown <= 0)//???WTF am i doing? Who knows what can it return!
+                igniteCheck = true;
+            else
+                igniteCheck = false;
+            WExploder();
         }
         /// <summary>
         /// On create gameobject
@@ -142,7 +173,8 @@ namespace Ziggs
         /// <param name="args"></param>
         private static void Drawing_OnDraw(EventArgs args)
         {
-            Drawing.DrawText(250, 250, Color.PaleVioletRed, isInDanger(SimpleTs.GetTarget(Q1.Range, SimpleTs.DamageType.Magical)).ToString());
+            //Drawing.DrawText(250, 250, Color.PaleVioletRed, isInDanger(SimpleTs.GetTarget(Q1.Range, SimpleTs.DamageType.Magical)).ToString());
+            //Drawing.DrawCircle(debugPred, 10, Color.Aqua);
         }
         /// <summary>
         /// Anti-gapcloser
@@ -169,7 +201,7 @@ namespace Ziggs
             if (W.IsReady() &&
                 Vector3.Distance(player.Position, unit.Position) <= -1 + W.Range + W.Width / 2 &&
                 menu.SubMenu("misc").Item("interrupt").GetValue<bool>() &&
-                spell.DangerLevel <= menu.SubMenu("misc").Item("interrupt").GetValue<InterruptableDangerLevel>())
+                spell.DangerLevel >= InterruptableDangerLevel.Medium)
             {
                 Vector3 pos = V3E(player.Position, unit.Position, -1 + Vector3.Distance(player.Position, unit.Position) - W.Width/2);
                 W.Cast(pos, true);
@@ -181,14 +213,72 @@ namespace Ziggs
         /// </summary>
         private static void Combo()
         {
+            bool useQ = Q1.IsReady() && menu.SubMenu("combo").Item("UseQ").GetValue<bool>();
+            bool useW = W.IsReady()  && menu.SubMenu("combo").Item("UseW").GetValue<bool>();
+            bool useE = E.IsReady()  && menu.SubMenu("combo").Item("UseE").GetValue<bool>();
+            bool useR = R.IsReady()  && menu.SubMenu("combo").Item("UseQ").GetValue<bool>();
+            Obj_AI_Hero targetQ = new TargetSelector(Q3.Range, TargetSelector.TargetingMode.LessCast).Target;
+            Obj_AI_Hero targetW = new TargetSelector(W.Range, TargetSelector.TargetingMode.LessCast).Target;
+            Obj_AI_Hero targetE = new TargetSelector(E.Range, TargetSelector.TargetingMode.LessCast).Target;
+            Obj_AI_Hero targetR = new TargetSelector(R.Range, TargetSelector.TargetingMode.LessCast).Target;
+            if (targetW.IsValid && DamageLib.IsKillable(targetW, mainCombo))
+            {
+                if (igniteCheck)
+                {
 
+                }
+                if(DFG.IsReady())
+                    DFG.Cast(targetW);
+            }
+            if (useW)
+            {
+                if (menu.SubMenu("misc").Item("GETOVERHERE").GetValue<bool>())
+                {
+                    PredictionOutput prediction = W.GetPrediction(targetW);
+                    Vector3 pos = V3E(player.Position, targetW.Position,
+                        Vector3.Distance(player.Position, targetW.Position) + 30);
+                    if (Vector3.Distance(player.Position, prediction.CastPosition) <=
+                        Vector3.Distance(player.Position, pos))
+                    {
+                        W.Cast(pos);
+                        Wmode = WModes.COMBAT;
+                    }
+                    else
+                    {
+                        pos = V3E(player.Position, prediction.CastPosition,
+                            Vector3.Distance(player.Position, prediction.CastPosition));
+                        W.Cast(pos);
+                        Wmode = WModes.COMBAT;
+                    }
+                }
+                else
+                {
+                    W.Cast(V3E(player.Position, targetW.Position, -10));
+                    Wmode = WModes.COMBAT;
+                }
+            }
+            if (useQ)
+            {
+                PredictionOutput prediction = Q1.GetPrediction(targetQ);
+                if (prediction.Hitchance >= HitChance.Medium) Q1.Cast(prediction.CastPosition);
+            }
+            if (useE)
+            {
+                PredictionOutput prediction = E.GetPrediction(targetE);
+                if (prediction.Hitchance >= HitChance.Medium) E.Cast(prediction.CastPosition);
+            }
         }
         /// <summary>
         /// Harass
         /// </summary>
         private static void Harass()
         {
-
+            Obj_AI_Hero target = new TargetSelector(Q3.Range, TargetSelector.TargetingMode.LessCast).Target;
+            if (menu.SubMenu("harass").Item("UseQ").GetValue<bool>() && Q1.IsReady())
+                Q1.Cast(target);
+            target = new TargetSelector(E.Range, TargetSelector.TargetingMode.LessCast).Target;
+            if (menu.SubMenu("harass").Item("UseE").GetValue<bool>() && E.IsReady())
+                E.Cast(target);
         }
         /// <summary>
         /// Farming function
@@ -205,19 +295,60 @@ namespace Ziggs
             int numToHit = menu.SubMenu("waveClear").Item("waveNum").GetValue<Slider>().Value;
             //Using of spells
             bool useQ = menu.SubMenu("waveClear").Item("UseQ").GetValue<bool>();
-            bool useW = menu.SubMenu("waveClear").Item("UseW").GetValue<bool>();
+            //bool useW = menu.SubMenu("waveClear").Item("UseW").GetValue<bool>();
             bool useE = menu.SubMenu("waveClear").Item("UseE").GetValue<bool>();
             //Casts
             if (useQ && QPos.MinionsHit >= numToHit) Q1.Cast(QPos.Position, true);
-            if (useW && WPos.MinionsHit >= numToHit) W.Cast(WPos.Position, true);
+            if (false && WPos.MinionsHit >= numToHit) W.Cast(WPos.Position, true);
             if (useE && EPos.MinionsHit >= numToHit) E.Cast(EPos.Position, true);
         }
-        /// <summary>
-        /// Updates of all items and spells
-        /// </summary>
-        private static void ItemsUpdate()
+        private static void Escape(escapeModes mode)
         {
-
+            switch (mode)
+            {
+                case escapeModes.TOMOUSE://Escaping to mouse
+                    {
+                        Vector3 cursorPos = Game.CursorPos;
+                        Vector3 pos = V3E(player.Position, cursorPos, (float)-15);
+                        if (!IsPassWall(player.Position, cursorPos))//Escaping to mouse pos
+                        {
+                            Game.PrintChat("V storony kursora");
+                            Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(cursorPos.X, cursorPos.Y)).Send();
+                        }
+                        else//Escape through the wall (Flash fail)
+                        {
+                            Vector3 jumpPred = V3E(pos, cursorPos, 700);
+                            if (IsWall(jumpPred.To2D()) && IsPassWall(player.Position, jumpPred))//Can't we jump over?
+                            {
+                                Game.PrintChat("V stotony steni");
+                                Vector3 pass = V3E(player.Position, jumpPred, 50);//Point to move closer to the wall (could be better, i know, i'll improve it)
+                                Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(pass.X, pass.Y)).Send();//Move closer to the wall
+                                return;
+                            }
+                            else//Yes! We can!
+                            {//Stand still
+                                Game.PrintChat("Ne ripatsya");
+                                Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(player.Position.X, player.Position.Y)).Send();
+                            }
+                        }
+                        if (!W.IsReady()) return;//Simple!
+                        W.Cast(pos);//Poof! W cast!
+                        Wmode = WModes.ESCAPE;//WMode
+                    }
+                    break;
+                case escapeModes.FROMTURRET:
+                    {
+                        Vector3 WPos = V3E(player.Position, TUnit_obj.Position, 40);//Positions
+                        Vector3 escapePos = V3E(player.Position, TUnit_obj.Position, -450);
+                        Game.PrintChat("Nahui ot turri");
+                        Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(escapePos.X, escapePos.Y)).Send();//Move away
+                        if (!W.IsReady()) return;//Simple!
+                        W.Cast(WPos);//Cast W to move away
+                        TUnit_obj.isAggred = false;//Turrent isn't focusing us anymore
+                        Wmode = WModes.ESCAPE;//???PROFIT
+                    }
+                    break;
+            }
         }
         /// <summary>
         /// Menu creation
@@ -257,7 +388,7 @@ namespace Ziggs
             Menu waveClear = new Menu("WaveClear", "waveClear");
             menu.AddSubMenu(waveClear);
             waveClear.AddItem(new MenuItem("UseQ", "Use Q").SetValue(true));
-            waveClear.AddItem(new MenuItem("UseW", "Use W").SetValue(true));
+            //waveClear.AddItem(new MenuItem("UseW", "Use W").SetValue(true));
             waveClear.AddItem(new MenuItem("UseE", "Use E").SetValue(true));
             waveClear.AddItem(new MenuItem("waveNum", "Minions to hit").SetValue<Slider>(new Slider(3, 1, 10)));
             waveClear.AddItem(new MenuItem("Active", "WaveClear active").SetValue<KeyBind>(new KeyBind('V', KeyBindType.Press)));
@@ -266,10 +397,14 @@ namespace Ziggs
             Menu misc = new Menu("Misc", "misc");
             menu.AddSubMenu(misc);
             misc.AddItem(new MenuItem("interrupt", "Interrupt spells").SetValue(true));
-            misc.AddItem(new MenuItem("interruptLevel", "Interrupt only with danger level").SetValue<InterruptableDangerLevel>(InterruptableDangerLevel.Medium));
+            //misc.AddItem(new MenuItem("interruptLevel", "Interrupt only with danger level").SetValue<InterruptableDangerLevel>(InterruptableDangerLevel.Medium));
             misc.AddItem(new MenuItem("antigapcloser", "Anti-Gapscloser").SetValue(true));
             misc.AddItem(new MenuItem("GETOVERHERE", "Try to throw enemy closer in combo").SetValue(true));
-            misc.AddItem(new MenuItem("GTFO", "Previous depend on danger level").SetValue(true));
+            misc.AddItem(new MenuItem("MAKEMETHEHELLOUTTAHEREMAN", "Smart W").SetValue<KeyBind>(new KeyBind('G', KeyBindType.Press)));
+            misc.AddItem(new MenuItem("forceR", "Force ultimate").SetValue<KeyBind>(new KeyBind('T', KeyBindType.Press)));
+
+            Menu ulti = new Menu("Ultimate", "ulti");
+            menu.AddSubMenu(ulti);
 
             // Drawings
             Menu drawings = new Menu("Drawings", "drawings");
@@ -282,32 +417,7 @@ namespace Ziggs
             // Finalize menu
             menu.AddToMainMenu();
         }
-        /// <summary>
-        /// Return danger level dependable on environment
-        /// </summary>
-        /// <param name="target"></param>
-        /// <returns></returns>
-        private static dangerLevelModes isInDanger(Obj_AI_Hero target)
-        {
-            float tRange = Orbwalking.GetRealAutoAttackRange(target);
-            if(aaRange*1.2 <= tRange 
-                && player.Health*1.2 < target.Health &&
-                !isCooldown(new List<Spell>(){Q1, W}))
-                return dangerLevelModes.ABLE;
-            if (aaRange*1.2 <= tRange && 
-                player.Health*1.4 <= target.Health &&
-                !isCooldown(new List<Spell>() { Q1, W, E }))
-                return dangerLevelModes.ABLE;
-            if (aaRange*0.9 <= tRange &&
-                player.Health * 1.4 <= target.Health &&
-                !isCooldown(new List<Spell>() { Q1, W}))
-                return dangerLevelModes.WARNING;
-            if (aaRange * 0.9 <= tRange &&
-                player.Health * 1.7 <= target.Health &&
-                !isCooldown(new List<Spell>() { Q1, W }))
-                return dangerLevelModes.EXTREMELY;
-           return dangerLevelModes.NONE;
-        }
+        /*
         /// <summary>
         /// Is spells on cooldown
         /// </summary>
@@ -321,6 +431,7 @@ namespace Ziggs
             }
             return false;
         }
+        */
         /// <summary>
         /// Get Vector3 position in direction by distance
         /// </summary>
@@ -332,9 +443,43 @@ namespace Ziggs
         {
             return (from.To2D() + distance * Vector2.Normalize(direction.To2D() - from.To2D())).To3D();
         }
+        /// <summary>
+        /// Is hit wall in this direcion :D Similar version of "collision wall"
+        /// </summary>
+        /// <param name="start"></param>
+        /// <param name="end"></param>
+        /// <returns></returns>
+        private static bool IsPassWall(Vector3 start, Vector3 end)
+        {
+            double count = Vector3.Distance(start, end);
+            for (uint i = 0; i <= count; i += 10)
+            {
+                Vector2 pos = V3E(start, end, i).To2D();
+                if (IsWall(pos)) return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// Is current point a wall
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <returns></returns>
+        private static bool IsWall(Vector2 pos)
+        {
+            return (NavMesh.GetCollisionFlags(pos.X, pos.Y) == CollisionFlags.Wall);
+        }
+        /// <summary>
+        /// No explanation
+        /// </summary>
         private static void WExploder()
         {
-            if (Wmode != WModes.NONE) W.Cast();
+            if (Wmode != WModes.NONE) W.Cast(default(Vector3), true);
         }
+    }
+    class TUnit
+    {
+        public Vector3 Position = default(Vector3);
+        public bool isAggred = false;
+        public float LastAggroTime = 0f;//10 секунд тайминг
     }
 }
