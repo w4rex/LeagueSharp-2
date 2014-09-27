@@ -26,7 +26,7 @@ namespace Ziggs
         private static readonly Obj_AI_Hero player = ObjectManager.Player;  //Player object
         private static Spell Q1, Q2, Q3, W, E, R;                           //Spells
         private static readonly List<Spell> spellList = new List<Spell>();  //Spell list (for?)
-        private static bool DOTReady, TFMode, igniteCheck = false;  //Ignite, TeamFightMode, has ignite, does W exist
+        private static bool DOTReady, igniteCheck = false;  //Ignite, has ignite, does W exist
         private enum beingFocusedModes { NONE, TURRET, CHAMPION };        //Being focused by
         private enum escapeModes { TOMOUSE, FROMTURRET }       //Escape to mouse, escape away from turret
         private enum WModes { NONE, INTERRUPTOR, ANTIGAPCLOSER, ESCAPE, COMBAT }            //Modes of second W cast
@@ -38,10 +38,11 @@ namespace Ziggs
         private static string wObj = "ZiggsW_mis_ground.troy";              //Well, W object, as is
         private static Menu menu;                                           //Menu! (@_@ )
         private static Orbwalking.Orbwalker SOW;                            //SOW! (^_^ )
+        private static List<Spell> SpellList = new List<Spell>();
         private static Items.Item DFG = new Items.Item(3128, 750);          //DFG!!!!!!
         
         //(?)List of damage sources to calc
-        private static readonly List<Tuple<DamageLib.SpellType, DamageLib.StageType>> mainCombo = new List<Tuple<DamageLib.SpellType, DamageLib.StageType>>();
+        private static readonly List<Tuple<SpellSlot, int>> mainCombo = new List<Tuple<SpellSlot, int>>();
 
         static void Main(string[] args)
         {
@@ -56,19 +57,21 @@ namespace Ziggs
             if (player.ChampionName != champName) return;                   //Champion validation
 
             //Spell init
-            Q1 = new Spell(SpellSlot.Q, 850f);
-            Q2 = new Spell(SpellSlot.Q, 1125f);
-            Q3 = new Spell(SpellSlot.Q, 1400f);
-            W  = new Spell(SpellSlot.W, 970);
-            E  = new Spell(SpellSlot.E, 900);
+            Q1 = new Spell(SpellSlot.Q, 850);
+            Q2 = new Spell(SpellSlot.Q, 1125);
+            Q3 = new Spell(SpellSlot.Q, 1400);
+            W  = new Spell(SpellSlot.W, 960);
+            E  = new Spell(SpellSlot.E, 870);
             R  = new Spell(SpellSlot.R, 5300);
-
+            SpellList.Add(Q3);
+            SpellList.Add(W);
+            SpellList.Add(E);
             //SetSkillshot(float delay, float width, float speed, bool collision, SkillshotType type, Vector3 from = null, Vector3 rangeCheckFrom = null);
             Q1.SetSkillshot(0.3f,            130, 1700, false , SkillshotType.SkillshotCircle);
             Q2.SetSkillshot(0.25f + Q1.Delay,130, 1700, false, SkillshotType.SkillshotCircle);
             Q3.SetSkillshot(0.30f + Q2.Delay,130, 1700, false, SkillshotType.SkillshotCircle);
             W.SetSkillshot(0.250f,           275, 1800, false, SkillshotType.SkillshotCircle);
-            E.SetSkillshot(0.700f,           235, 2700, false, SkillshotType.SkillshotCircle);
+            E.SetSkillshot(1.000f,           235, 2700, false, SkillshotType.SkillshotCircle);
             R.SetSkillshot(1.014f,           525, 1750, false, SkillshotType.SkillshotCircle);
             spellList.AddRange(new[] { Q1, Q2, Q3, W, E, R });
             //Ignite
@@ -77,15 +80,13 @@ namespace Ziggs
             {
                 DOTReady = true;
                 igniteCheck = true;
+                mainCombo.Add(Tuple.Create(player.GetSpellSlot("SummonerDot"), 0));
             }
             //Combo settings
-            mainCombo.Add(Tuple.Create(DamageLib.SpellType.AD, DamageLib.StageType.Default));
-            mainCombo.Add(Tuple.Create(DamageLib.SpellType.Q, DamageLib.StageType.Default));
-            mainCombo.Add(Tuple.Create(DamageLib.SpellType.W, DamageLib.StageType.Default));
-            mainCombo.Add(Tuple.Create(DamageLib.SpellType.E, DamageLib.StageType.Default));
-            mainCombo.Add(Tuple.Create(DamageLib.SpellType.R, DamageLib.StageType.Default));
-            mainCombo.Add(Tuple.Create(DamageLib.SpellType.IGNITE, DamageLib.StageType.Default));
-            mainCombo.Add(Tuple.Create(DamageLib.SpellType.DFG, DamageLib.StageType.Default));
+            mainCombo.Add(Tuple.Create(SpellSlot.Q, 0));
+            mainCombo.Add(Tuple.Create(SpellSlot.W, 0));
+            mainCombo.Add(Tuple.Create(SpellSlot.E, 0));
+            mainCombo.Add(Tuple.Create(SpellSlot.R, 0));
             //Menu loading
             LoadMenu();
             //Presets
@@ -94,7 +95,7 @@ namespace Ziggs
             Game.OnGameUpdate += Game_OnGameUpdate;
             Drawing.OnDraw += Drawing_OnDraw;
             AntiGapcloser.OnEnemyGapcloser += AntiGapcloser_OnEnemyGapcloser;
-            Interrupter.OnPosibleToInterrupt += Interrupter_OnPosibleToInterrupt;
+            Interrupter.OnPossibleToInterrupt += Interrupter_OnPossibleToInterrupt;
             GameObject.OnCreate += GO_OnCreate;
             GameObject.OnDelete += GO_OnRemove;
             Game.OnGameProcessPacket += OnRecievePacket;
@@ -110,10 +111,6 @@ namespace Ziggs
                 TUnit_obj.isAggred = true;
             }
         }
-        /// <summary>
-        /// Per tick
-        /// </summary>
-        /// <param name="args"></param>
         private static void Game_OnGameUpdate(EventArgs args)
         {
             // Combo
@@ -140,11 +137,6 @@ namespace Ziggs
                 igniteCheck = false;
             WExploder();
         }
-        /// <summary>
-        /// On create gameobject
-        /// </summary>
-        /// <param name="GO">GameObject class</param>
-        /// <param name="args"></param>
         private static void GO_OnCreate(LeagueSharp.GameObject GO, EventArgs args)
         {
             if (GO.Name == wObj)
@@ -152,11 +144,6 @@ namespace Ziggs
                 wPos = GO.Position;
             }
         }
-        /// <summary>
-        /// On remove gameobject
-        /// </summary>
-        /// <param name="GO">GameObject class</param>
-        /// <param name="args"></param>
         private static void GO_OnRemove(LeagueSharp.GameObject GO, EventArgs args)
         {
             if (GO.Name == wObj)
@@ -165,27 +152,26 @@ namespace Ziggs
                 Wmode = WModes.NONE;
             }
         }
-        /// <summary>
-        /// Drawings
-        /// </summary>
-        /// <param name="args"></param>
         private static void Drawing_OnDraw(EventArgs args)
         {
-            //Drawing.DrawText(250, 250, Color.PaleVioletRed, isInDanger(SimpleTs.GetTarget(Q1.Range, SimpleTs.DamageType.Magical)).ToString());
-            //Drawing.DrawCircle(debugPred, 10, Color.Aqua);
+            //Draw the ranges of the spells. Ty Honda, stolen from your code :P
+            foreach (var spell in SpellList)
+            {
+                var menuItem = menu.Item(spell.Slot + "range").GetValue<Circle>();
+                if (menuItem.Active)
+                {
+                    Utility.DrawCircle(player.Position, spell.Range, menuItem.Color);
+                }
+            }
         }
-        /// <summary>
-        /// Anti-gapcloser
-        /// </summary>
-        /// <param name="gapcloser">Object with gapcloser params</param>
         private static void AntiGapcloser_OnEnemyGapcloser(ActiveGapcloser gapcloser)
         {
             if (W.IsReady() && menu.SubMenu("misc").Item("antigapcloser").GetValue<bool>())
             {
-                if (gapcloser.SkillType == GapcloserType.Skillshot)
+                //if (gapcloser.SkillType == GapcloserType.Skillshot)
                     W.Cast(gapcloser.End, true); //TODO: разные интеррапты для лисинов\джарванов\леон
-                else//Проверить работоспособность на разных гепклозерах
-                    //W.Cast(gapcloser.Sender);
+                //else//Проверить работоспособность на разных гепклозерах
+                   // W.Cast(gapcloser.End);//СДЕЛАТЬ, БЛЯДЬ!
                 Wmode = WModes.ANTIGAPCLOSER;
             }
         }
@@ -194,7 +180,7 @@ namespace Ziggs
         /// </summary>
         /// <param name="unit">Unit that causing interruptable spell</param>
         /// <param name="spell">Spell that can be interrupted</param>
-        private static void Interrupter_OnPosibleToInterrupt(Obj_AI_Base unit, InterruptableSpell spell)
+        private static void Interrupter_OnPossibleToInterrupt(Obj_AI_Base unit, InterruptableSpell spell)
         {
             if (W.IsReady() &&
                 Vector3.Distance(player.Position, unit.Position) <= -1 + W.Range + W.Width / 2 &&
@@ -211,6 +197,7 @@ namespace Ziggs
         /// </summary>
         private static void Combo()
         {
+            Console.WriteLine("Combo");
             bool useQ = Q1.IsReady() && menu.SubMenu("combo").Item("UseQ").GetValue<bool>();
             bool useW =  W.IsReady() && menu.SubMenu("combo").Item("UseW").GetValue<bool>();
             bool useE =  E.IsReady() && menu.SubMenu("combo").Item("UseE").GetValue<bool>();
@@ -219,11 +206,11 @@ namespace Ziggs
             Obj_AI_Hero targetW = SimpleTs.GetTarget(W.Range, SimpleTs.DamageType.Magical);
             Obj_AI_Hero targetE = SimpleTs.GetTarget(E.Range, SimpleTs.DamageType.Magical);
             Obj_AI_Hero targetR = SimpleTs.GetTarget(R.Range, SimpleTs.DamageType.Magical);
-            if (targetW.IsValid && DamageLib.IsKillable(targetW, mainCombo))
+            if (targetW.IsValid && CalculateDamage(targetW) > targetW.Health)
             {
                 if (igniteCheck)
                 {
-
+                    player.Spellbook.CastSpell(player.GetSpellSlot("SummonerDot"), targetW);
                 }
                 if(DFG.IsReady())
                     DFG.Cast(targetW);
@@ -233,8 +220,8 @@ namespace Ziggs
                 PredictionOutput prediction = W.GetPrediction(targetW);
                 if (menu.SubMenu("misc").Item("GETOVERHERE").GetValue<bool>() && (prediction.Hitchance >= HitChance.Medium))
                 {
-                    Vector3 pos = V3E(player.Position, targetW.Position,
-                        Vector3.Distance(player.Position, targetW.Position) + 30);
+                    Vector3 pos = V3E(player.Position, prediction.CastPosition,
+                        Vector3.Distance(player.Position, targetW.Position) + 40);
                     if (Vector3.Distance(player.Position, prediction.CastPosition) <=
                         Vector3.Distance(player.Position, pos))
                     {
@@ -257,22 +244,23 @@ namespace Ziggs
             }
             if (useQ)
             {
-                PredictionOutput prediction = Q3.GetPrediction(targetQ);
-                if (prediction.Hitchance >= HitChance.Medium) Q1.Cast(prediction.CastPosition);
+                CastQ(targetQ);
             }
             if (useE)
             {
                 PredictionOutput prediction = E.GetPrediction(targetE);
-                if (prediction.Hitchance >= HitChance.Medium) E.Cast(prediction.CastPosition);
+                Vector3 pos = V3E(player.Position, prediction.CastPosition,
+                        Vector3.Distance(player.Position, prediction.CastPosition) + 30);
+                if (prediction.Hitchance >= HitChance.Medium) E.Cast(pos);
             }
             if (useR)//TEST IT!
             {
                 PredictionOutput prediction = R.GetPrediction(targetR);
-                if ((menu.SubMenu("ulti").Item("ultiOnKillable").GetValue<bool>() && DamageLib.IsKillable(targetR, mainCombo.GetRange(4, 1))) || menu.SubMenu("ulti").Item("forceR").GetValue<KeyBind>().Active)
-                    if (prediction.Hitchance >= HitChance.Medium)
+                if ((menu.SubMenu("ulti").Item("ultiOnKillable").GetValue<bool>() && Damage.IsKillable(player, targetR, new List<Tuple<SpellSlot, int>>() {new Tuple<SpellSlot, int>(SpellSlot.R, 0){}}) || menu.SubMenu("ulti").Item("forceR").GetValue<KeyBind>().Active))
+                    if (prediction.Hitchance >= HitChance.Medium || menu.SubMenu("ulti").Item("forceRPrediction").GetValue<bool>())
                         R.Cast(prediction.CastPosition);
 
-                List<Vector2> enemiesPrediction = default(List<Vector2>);
+                List<Vector2> enemiesPrediction = new List<Vector2>();
                 foreach (Obj_AI_Hero hero in ObjectManager.Get<Obj_AI_Hero>())
                     if (hero.Team != player.Team && hero.IsTargetable)
                         enemiesPrediction.Add(R.GetPrediction(hero).CastPosition.To2D());
@@ -288,7 +276,7 @@ namespace Ziggs
         {
             Obj_AI_Hero target = SimpleTs.GetTarget(Q1.Range, SimpleTs.DamageType.Magical);
             if (menu.SubMenu("harass").Item("UseQ").GetValue<bool>() && Q1.IsReady())
-                Q1.Cast(target);
+                CastQ(target);
             target = SimpleTs.GetTarget(E.Range, SimpleTs.DamageType.Magical);
             if (menu.SubMenu("harass").Item("UseE").GetValue<bool>() && E.IsReady())
                 E.Cast(target);
@@ -299,10 +287,10 @@ namespace Ziggs
         private static void LaneClear()
         {
             //Minions
-            List<Obj_AI_Base> minions = MinionManager.GetMinions(player.Position, Q1.Range);
+            List<Obj_AI_Base> minions = MinionManager.GetMinions(player.Position, Q3.Range);
             //Farm locations for spells
-            MinionManager.FarmLocation QPos = Q1.GetCircularFarmLocation(minions);
-            MinionManager.FarmLocation WPos = W.GetCircularFarmLocation(minions);
+            MinionManager.FarmLocation QPos = Q3.GetCircularFarmLocation(minions);
+            //MinionManager.FarmLocation WPos = W.GetCircularFarmLocation(minions);
             MinionManager.FarmLocation EPos = E.GetCircularFarmLocation(minions);
             //Minons count
             int numToHit = menu.SubMenu("waveClear").Item("waveNum").GetValue<Slider>().Value;
@@ -312,7 +300,7 @@ namespace Ziggs
             bool useE = menu.SubMenu("waveClear").Item("UseE").GetValue<bool>();
             //Casts
             if (useQ && QPos.MinionsHit >= numToHit) Q1.Cast(QPos.Position, true);
-            if (false && WPos.MinionsHit >= numToHit) W.Cast(WPos.Position, true);
+            //if (false && WPos.MinionsHit >= numToHit) W.Cast(WPos.Position, true);
             if (useE && EPos.MinionsHit >= numToHit) E.Cast(EPos.Position, true);
         }
         private static void Escape(escapeModes mode)
@@ -342,7 +330,6 @@ namespace Ziggs
                                 Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(player.Position.X, player.Position.Y)).Send();
                             }
                         }
-                        Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(cursorPos.X, cursorPos.Y)).Send();
                         if (!W.IsReady()) return;//Simple!
                         W.Cast(pos);//Poof! W cast!
                         Wmode = WModes.ESCAPE;//WMode
@@ -417,19 +404,28 @@ namespace Ziggs
             Menu ulti = new Menu("Ultimate", "ulti");
             menu.AddSubMenu(ulti);
             ulti.AddItem(new MenuItem("forceR", "Force ultimate").SetValue<KeyBind>(new KeyBind('T', KeyBindType.Press)));
+            ulti.AddItem(new MenuItem("forceRPrediction", "Cast with any hitchance").SetValue(true));
             ulti.AddItem(new MenuItem("NTH", "Enemies to hit").SetValue<Slider>(new Slider(3, 1, 5)));
             ulti.AddItem(new MenuItem("ultiOnKillable", "Ulti on killable(may KS)").SetValue(true));
-
+            //Stolen from Honda7's code, cause i'm lazy fuck ( -_-)
+            var dmgAfterComboItem = new MenuItem("DamageAfterCombo", "Draw damage after a rotation").SetValue(true);
+            Utility.HpBarDamageIndicator.DamageToUnit += hero => (float)CalculateDamage(hero);
+            Utility.HpBarDamageIndicator.Enabled = dmgAfterComboItem.GetValue<bool>();
+            dmgAfterComboItem.ValueChanged += delegate(object sender, OnValueChangeEventArgs eventArgs)
+            {
+                Utility.HpBarDamageIndicator.Enabled = eventArgs.GetNewValue<bool>();
+            };
             // Drawings
             Menu drawings = new Menu("Drawings", "drawings");
             menu.AddSubMenu(drawings);
-            drawings.AddItem(new MenuItem("drawRangeQ", "Q range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
-            drawings.AddItem(new MenuItem("drawRangeW", "W range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
-            drawings.AddItem(new MenuItem("drawRangeE", "E range").SetValue(new Circle(false, Color.FromArgb(150, Color.DarkRed))));
-            drawings.AddItem(new MenuItem("drawRangeR", "R range").SetValue(new Circle(false, Color.FromArgb(150, Color.Red))));
+            drawings.AddItem(new MenuItem("Qrange", "Q Range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
+            drawings.AddItem(new MenuItem("Wrange", "W Range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
+            drawings.AddItem(new MenuItem("Erange", "E Range").SetValue(new Circle(false, Color.FromArgb(150, Color.DarkRed))));
+            drawings.AddItem(dmgAfterComboItem);
 
             // Finalize menu
             menu.AddToMainMenu();
+            Console.WriteLine("Menu finalized");
         }
         /*
         /// <summary>
@@ -492,11 +488,148 @@ namespace Ziggs
                 W.Cast();
             }
         }
+
+        //And it's all stolen too :C
+        private static void CastQ(Obj_AI_Base target)
+        {
+            PredictionOutput prediction;
+
+            if (ObjectManager.Player.Distance(target) < Q1.Range)
+            {
+                var oldrange = Q1.Range;
+                Q1.Range = Q2.Range;
+                prediction = Q1.GetPrediction(target, true);
+                Q1.Range = oldrange;
+            }
+            else if (ObjectManager.Player.Distance(target) < Q2.Range)
+            {
+                var oldrange = Q2.Range;
+                Q2.Range = Q3.Range;
+                prediction = Q2.GetPrediction(target, true);
+                Q2.Range = oldrange;
+            }
+            else if (ObjectManager.Player.Distance(target) < Q3.Range)
+            {
+                prediction = Q3.GetPrediction(target, true);
+            }
+            else
+            {
+                return;
+            }
+
+            if (prediction.Hitchance >= HitChance.High)
+            {
+                if (ObjectManager.Player.ServerPosition.Distance(prediction.CastPosition) <= Q1.Range + Q1.Width)
+                {
+                    Vector3 p;
+                    if (ObjectManager.Player.ServerPosition.Distance(prediction.CastPosition) > 300)
+                    {
+                        p = prediction.CastPosition -
+                            100 *
+                            (prediction.CastPosition.To2D() - ObjectManager.Player.ServerPosition.To2D()).Normalized()
+                                .To3D();
+                    }
+                    else
+                    {
+                        p = prediction.CastPosition;
+                    }
+
+                    Q1.Cast(p);
+                }
+                else if (ObjectManager.Player.ServerPosition.Distance(prediction.CastPosition) <=
+                         ((Q1.Range + Q2.Range) / 2))
+                {
+                    var p = ObjectManager.Player.ServerPosition.To2D()
+                        .Extend(prediction.CastPosition.To2D(), Q1.Range - 100);
+
+                    if (!CheckQCollision(target, prediction.UnitPosition, p.To3D()))
+                    {
+                        Q1.Cast(p.To3D());
+                    }
+                }
+                else
+                {
+                    var p = ObjectManager.Player.ServerPosition.To2D() +
+                            Q1.Range *
+                            (prediction.CastPosition.To2D() - ObjectManager.Player.ServerPosition.To2D()).Normalized
+                                ();
+
+                    if (!CheckQCollision(target, prediction.UnitPosition, p.To3D()))
+                    {
+                        Q1.Cast(p.To3D());
+                    }
+                }
+            }
+        }
+
+        private static bool CheckQCollision(Obj_AI_Base target, Vector3 targetPosition, Vector3 castPosition)
+        {
+            var direction = (castPosition.To2D() - ObjectManager.Player.ServerPosition.To2D()).Normalized();
+            var firstBouncePosition = castPosition.To2D();
+            var secondBouncePosition = firstBouncePosition +
+                                       direction * 0.4f *
+                                       ObjectManager.Player.ServerPosition.To2D().Distance(firstBouncePosition);
+            var thirdBouncePosition = secondBouncePosition +
+                                      direction * 0.6f * firstBouncePosition.Distance(secondBouncePosition);
+
+            //TODO: Check for wall collision.
+
+            if (thirdBouncePosition.Distance(targetPosition.To2D()) < Q1.Width + target.BoundingRadius)
+            {
+                //Check the second one.
+                foreach (var minion in ObjectManager.Get<Obj_AI_Minion>())
+                {
+                    if (minion.IsValidTarget(3000))
+                    {
+                        var predictedPos = Q2.GetPrediction(minion);
+                        if (predictedPos.UnitPosition.To2D().Distance(secondBouncePosition) <
+                            Q2.Width + minion.BoundingRadius)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            if (secondBouncePosition.Distance(targetPosition.To2D()) < Q1.Width + target.BoundingRadius ||
+                thirdBouncePosition.Distance(targetPosition.To2D()) < Q1.Width + target.BoundingRadius)
+            {
+                //Check the first one
+                foreach (var minion in ObjectManager.Get<Obj_AI_Minion>())
+                {
+                    if (minion.IsValidTarget(3000))
+                    {
+                        var predictedPos = Q1.GetPrediction(minion);
+                        if (predictedPos.UnitPosition.To2D().Distance(firstBouncePosition) <
+                            Q1.Width + minion.BoundingRadius)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+        private static double CalculateDamage(Obj_AI_Hero target)
+        {
+            double total = 0;
+            if (player.Spellbook.CanUseSpell(SpellSlot.Q) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.Q);
+            if (player.Spellbook.CanUseSpell(SpellSlot.W) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.W);
+            if (player.Spellbook.CanUseSpell(SpellSlot.E) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.E);
+            if (player.Spellbook.CanUseSpell(SpellSlot.R) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.R);
+            if (igniteCheck) 
+                total += player.GetSummonerSpellDamage(target, Damage.SummonerSpell.Ignite);
+            if (DFG.IsReady()) total += player.GetItemDamage(target, Damage.DamageItems.Dfg);
+            return total;
+        }
     }
     class TUnit
     {
         public Vector3 Position = default(Vector3);
         public bool isAggred = false;
         public float LastAggroTime = 0f;//10 секунд тайминг
-    }
+    }   
 }
