@@ -221,7 +221,7 @@ namespace Ziggs
                 if (menu.SubMenu("misc").Item("GETOVERHERE").GetValue<bool>() && (prediction.Hitchance >= HitChance.Medium))
                 {
                     Vector3 pos = V3E(player.Position, prediction.CastPosition,
-                        Vector3.Distance(player.Position, targetW.Position) + 40);
+                        Vector3.Distance(player.Position, prediction.CastPosition) + 40);
                     if (Vector3.Distance(player.Position, prediction.CastPosition) <=
                         Vector3.Distance(player.Position, pos))
                     {
@@ -259,13 +259,13 @@ namespace Ziggs
                 if ((menu.SubMenu("ulti").Item("ultiOnKillable").GetValue<bool>() && Damage.IsKillable(player, targetR, new List<Tuple<SpellSlot, int>>() {new Tuple<SpellSlot, int>(SpellSlot.R, 0){}}) || menu.SubMenu("ulti").Item("forceR").GetValue<KeyBind>().Active))
                     if (prediction.Hitchance >= HitChance.Medium || menu.SubMenu("ulti").Item("forceRPrediction").GetValue<bool>())
                         R.Cast(prediction.CastPosition);
-
+                if(!menu.SubMenu("ulti").Item("AOE").GetValue<bool>() ) return;
                 List<Vector2> enemiesPrediction = new List<Vector2>();
                 foreach (Obj_AI_Hero hero in ObjectManager.Get<Obj_AI_Hero>())
                     if (hero.Team != player.Team && hero.IsTargetable)
                         enemiesPrediction.Add(R.GetPrediction(hero).CastPosition.To2D());
                 MinionManager.FarmLocation predictableCastPosition = R.GetCircularFarmLocation(enemiesPrediction);
-                if (predictableCastPosition.MinionsHit >= menu.SubMenu("ulti").Item("NTH").GetValue<Slider>().Value)
+                if (predictableCastPosition.MinionsHit >= menu.SubMenu("ulti").Item("enemiesToHit").GetValue<Slider>().Value)
                     R.Cast(predictableCastPosition.Position);
             }
         }
@@ -405,8 +405,10 @@ namespace Ziggs
             menu.AddSubMenu(ulti);
             ulti.AddItem(new MenuItem("forceR", "Force ultimate").SetValue<KeyBind>(new KeyBind('T', KeyBindType.Press)));
             ulti.AddItem(new MenuItem("forceRPrediction", "Cast with any hitchance").SetValue(true));
-            ulti.AddItem(new MenuItem("NTH", "Enemies to hit").SetValue<Slider>(new Slider(3, 1, 5)));
             ulti.AddItem(new MenuItem("ultiOnKillable", "Ulti on killable(may KS)").SetValue(true));
+            ulti.AddItem(new MenuItem("AOE", "Cast into crowd").SetValue(true));
+            ulti.AddItem(new MenuItem("enemiesToHit", "Enemies to hit").SetValue<Slider>(new Slider(3, 1, 5)));
+
             //Stolen from Honda7's code, cause i'm lazy fuck ( -_-)
             var dmgAfterComboItem = new MenuItem("DamageAfterCombo", "Draw damage after a rotation").SetValue(true);
             Utility.HpBarDamageIndicator.DamageToUnit += hero => (float)CalculateDamage(hero);
