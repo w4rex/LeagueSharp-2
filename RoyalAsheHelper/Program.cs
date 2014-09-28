@@ -32,13 +32,13 @@ namespace RoyalAsheHelper
                     {
                         if (!hasQ) Q.Cast();
                         hasQ = true;
-                        Game.PrintChat("Attacking enemy!" + hasQ.ToString() + " " + Packet.C2S.Move.Decoded(args.PacketData).TargetNetworkId);
+                        //Game.PrintChat("Attacking enemy!" + hasQ.ToString() + " " + Packet.C2S.Move.Decoded(args.PacketData).TargetNetworkId);
                     }
                     else
                     {
                         if (hasQ) Q.Cast();
                         hasQ = false;
-                        Game.PrintChat("Not attacking enemy!" + hasQ.ToString() + " " + Packet.C2S.Move.Decoded(args.PacketData).TargetNetworkId);
+                        //Game.PrintChat("Not attacking enemy!" + hasQ.ToString() + " " + Packet.C2S.Move.Decoded(args.PacketData).TargetNetworkId);
                     }
             }
         }
