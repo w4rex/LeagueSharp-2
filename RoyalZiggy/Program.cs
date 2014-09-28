@@ -25,7 +25,6 @@ namespace Ziggs
         private static readonly string champName = "Ziggs";                 //Ziggy
         private static readonly Obj_AI_Hero player = ObjectManager.Player;  //Player object
         private static Spell Q1, Q2, Q3, W, E, R;                           //Spells
-        private static readonly List<Spell> spellList = new List<Spell>();  //Spell list (for?)
         private static bool DOTReady, igniteCheck = false;  //Ignite, has ignite, does W exist
         private enum beingFocusedModes { NONE, TURRET, CHAMPION };        //Being focused by
         private enum escapeModes { TOMOUSE, FROMTURRET }       //Escape to mouse, escape away from turret
@@ -40,6 +39,8 @@ namespace Ziggs
         private static Orbwalking.Orbwalker SOW;                            //SOW! (^_^ )
         private static List<Spell> SpellList = new List<Spell>();
         private static Items.Item DFG = new Items.Item(3128, 750);          //DFG!!!!!!
+        private static List<FEnemy> lastTimePinged = new List<FEnemy>();
+        private static float lastQ = 0f;
         
         //(?)List of damage sources to calc
         private static readonly List<Tuple<SpellSlot, int>> mainCombo = new List<Tuple<SpellSlot, int>>();
@@ -55,17 +56,13 @@ namespace Ziggs
         private static void Game_OnGameLoad(EventArgs args)
         {
             if (player.ChampionName != champName) return;                   //Champion validation
-
             //Spell init
             Q1 = new Spell(SpellSlot.Q, 850);
             Q2 = new Spell(SpellSlot.Q, 1125);
             Q3 = new Spell(SpellSlot.Q, 1400);
-            W  = new Spell(SpellSlot.W, 960);
+            W  = new Spell(SpellSlot.W, 970);
             E  = new Spell(SpellSlot.E, 870);
             R  = new Spell(SpellSlot.R, 5300);
-            SpellList.Add(Q3);
-            SpellList.Add(W);
-            SpellList.Add(E);
             //SetSkillshot(float delay, float width, float speed, bool collision, SkillshotType type, Vector3 from = null, Vector3 rangeCheckFrom = null);
             Q1.SetSkillshot(0.3f,            130, 1700, false , SkillshotType.SkillshotCircle);
             Q2.SetSkillshot(0.25f + Q1.Delay,130, 1700, false, SkillshotType.SkillshotCircle);
@@ -73,7 +70,7 @@ namespace Ziggs
             W.SetSkillshot(0.250f,           275, 1800, false, SkillshotType.SkillshotCircle);
             E.SetSkillshot(1.000f,           235, 2700, false, SkillshotType.SkillshotCircle);
             R.SetSkillshot(1.014f,           525, 1750, false, SkillshotType.SkillshotCircle);
-            spellList.AddRange(new[] { Q1, Q2, Q3, W, E, R });
+            SpellList.AddRange(new[] { Q3, W, E });
             //Ignite
             var ignite = player.Spellbook.GetSpell(player.GetSpellSlot("SummonerDot"));
             if (ignite != null && ignite.Slot != SpellSlot.Unknown)
@@ -91,6 +88,16 @@ namespace Ziggs
             LoadMenu();
             //Presets
             Wmode = WModes.NONE;
+            try
+            {
+                foreach (Obj_AI_Hero hero in ObjectManager.Get<Obj_AI_Hero>())
+                    if (hero.IsEnemy) lastTimePinged.Add(new FEnemy(hero));
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+
             //Additional callbacks
             Game.OnGameUpdate += Game_OnGameUpdate;
             Drawing.OnDraw += Drawing_OnDraw;
@@ -99,6 +106,7 @@ namespace Ziggs
             GameObject.OnCreate += GO_OnCreate;
             GameObject.OnDelete += GO_OnRemove;
             Game.OnGameProcessPacket += OnRecievePacket;
+            Console.WriteLine("Loaded!");
         }
         private static void OnRecievePacket(GamePacketEventArgs args)
         {
@@ -163,6 +171,23 @@ namespace Ziggs
                     Utility.DrawCircle(player.Position, spell.Range, menuItem.Color);
                 }
             }
+            foreach (Obj_AI_Hero hero in ObjectManager.Get<Obj_AI_Hero>())
+            {
+                if (hero.IsEnemy && hero.IsTargetable && player.GetSpellDamage(hero, SpellSlot.R) > hero.Health && !hero.IsDead && R.IsReady())
+                {
+                    foreach(FEnemy enemy in lastTimePinged)
+                        if (enemy.NetworkId == hero.NetworkId)
+                        {
+                            Drawing.DrawText(Drawing.Width * 0.7f, Drawing.Height * 0.5f, System.Drawing.Color.GreenYellow, "Ult can kill, look at ping on map");
+                            if (enemy.LastAggroTime < Game.Time - 7)
+                            {
+                                Console.WriteLine("KS ping executed");
+                                Packet.S2C.Ping.Encoded(new Packet.S2C.Ping.Struct(hero.Position.X, hero.Position.Y, hero.NetworkId, 0, Packet.PingType.FallbackSound)).Process();
+                                enemy.LastAggroTime = Game.Time;
+                            }
+                        }
+                }
+            }
         }
         private static void AntiGapcloser_OnEnemyGapcloser(ActiveGapcloser gapcloser)
         {
@@ -202,7 +227,7 @@ namespace Ziggs
             bool useW =  W.IsReady() && menu.SubMenu("combo").Item("UseW").GetValue<bool>();
             bool useE =  E.IsReady() && menu.SubMenu("combo").Item("UseE").GetValue<bool>();
             bool useR =  R.IsReady() && (menu.SubMenu("combo").Item("UseR").GetValue<bool>() || menu.SubMenu("ulti").Item("forceR").GetValue<KeyBind>().Active);
-            Obj_AI_Hero targetQ = SimpleTs.GetTarget(Q1.Range, SimpleTs.DamageType.Magical);
+            Obj_AI_Hero targetQ = SimpleTs.GetTarget(Q3.Range, SimpleTs.DamageType.Magical);
             Obj_AI_Hero targetW = SimpleTs.GetTarget(W.Range, SimpleTs.DamageType.Magical);
             Obj_AI_Hero targetE = SimpleTs.GetTarget(E.Range, SimpleTs.DamageType.Magical);
             Obj_AI_Hero targetR = SimpleTs.GetTarget(R.Range, SimpleTs.DamageType.Magical);
@@ -221,7 +246,7 @@ namespace Ziggs
                 if (menu.SubMenu("misc").Item("GETOVERHERE").GetValue<bool>() && (prediction.Hitchance >= HitChance.Medium))
                 {
                     Vector3 pos = V3E(player.Position, prediction.CastPosition,
-                        Vector3.Distance(player.Position, prediction.CastPosition) + 40);
+                        Vector3.Distance(player.Position, prediction.CastPosition) + 30);
                     if (Vector3.Distance(player.Position, prediction.CastPosition) <=
                         Vector3.Distance(player.Position, pos))
                     {
@@ -256,10 +281,10 @@ namespace Ziggs
             if (useR)//TEST IT!
             {
                 PredictionOutput prediction = R.GetPrediction(targetR);
-                if ((menu.SubMenu("ulti").Item("ultiOnKillable").GetValue<bool>() && Damage.IsKillable(player, targetR, new List<Tuple<SpellSlot, int>>() {new Tuple<SpellSlot, int>(SpellSlot.R, 0){}}) || menu.SubMenu("ulti").Item("forceR").GetValue<KeyBind>().Active))
+                if ((menu.SubMenu("ulti").Item("ultiOnKillable").GetValue<bool>() && (player.GetSpellDamage(targetR, SpellSlot.R, 0) > targetR.Health && !(CalculateDamage(targetR, true) > targetR.Health) && targetR.Distance(player) < W.Range && lastQ+3 < Game.Time) || menu.SubMenu("ulti").Item("forceR").GetValue<KeyBind>().Active))
                     if (prediction.Hitchance >= HitChance.Medium || menu.SubMenu("ulti").Item("forceRPrediction").GetValue<bool>())
                         R.Cast(prediction.CastPosition);
-                if(!menu.SubMenu("ulti").Item("AOE").GetValue<bool>() ) return;
+                if(!menu.SubMenu("ulti").Item("AOE").GetValue<bool>())return;
                 List<Vector2> enemiesPrediction = new List<Vector2>();
                 foreach (Obj_AI_Hero hero in ObjectManager.Get<Obj_AI_Hero>())
                     if (hero.Team != player.Team && hero.IsTargetable)
@@ -274,7 +299,7 @@ namespace Ziggs
         /// </summary>
         private static void Harass()
         {
-            Obj_AI_Hero target = SimpleTs.GetTarget(Q1.Range, SimpleTs.DamageType.Magical);
+            Obj_AI_Hero target = SimpleTs.GetTarget(Q3.Range, SimpleTs.DamageType.Magical);
             if (menu.SubMenu("harass").Item("UseQ").GetValue<bool>() && Q1.IsReady())
                 CastQ(target);
             target = SimpleTs.GetTarget(E.Range, SimpleTs.DamageType.Magical);
@@ -537,6 +562,7 @@ namespace Ziggs
                     }
 
                     Q1.Cast(p);
+                    lastQ = Game.Time;
                 }
                 else if (ObjectManager.Player.ServerPosition.Distance(prediction.CastPosition) <=
                          ((Q1.Range + Q2.Range) / 2))
@@ -547,6 +573,7 @@ namespace Ziggs
                     if (!CheckQCollision(target, prediction.UnitPosition, p.To3D()))
                     {
                         Q1.Cast(p.To3D());
+                        lastQ = Game.Time;
                     }
                 }
                 else
@@ -559,6 +586,7 @@ namespace Ziggs
                     if (!CheckQCollision(target, prediction.UnitPosition, p.To3D()))
                     {
                         Q1.Cast(p.To3D());
+                        lastQ = Game.Time;
                     }
                 }
             }
@@ -615,13 +643,13 @@ namespace Ziggs
 
             return true;
         }
-        private static double CalculateDamage(Obj_AI_Hero target)
+        private static double CalculateDamage(Obj_AI_Hero target, bool notR = false)
         {
             double total = 0;
             if (player.Spellbook.CanUseSpell(SpellSlot.Q) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.Q);
             if (player.Spellbook.CanUseSpell(SpellSlot.W) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.W);
             if (player.Spellbook.CanUseSpell(SpellSlot.E) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.E);
-            if (player.Spellbook.CanUseSpell(SpellSlot.R) == SpellState.Ready) total += player.GetSpellDamage(target, SpellSlot.R);
+            if (player.Spellbook.CanUseSpell(SpellSlot.R) == SpellState.Ready && !notR) total += player.GetSpellDamage(target, SpellSlot.R);
             if (igniteCheck) 
                 total += player.GetSummonerSpellDamage(target, Damage.SummonerSpell.Ignite);
             if (DFG.IsReady()) total += player.GetItemDamage(target, Damage.DamageItems.Dfg);
@@ -630,8 +658,18 @@ namespace Ziggs
     }
     class TUnit
     {
-        public Vector3 Position = default(Vector3);
+        public Vector3 Position = new Vector3();
         public bool isAggred = false;
         public float LastAggroTime = 0f;//10 секунд тайминг
+    }
+    class FEnemy
+    {
+        public int NetworkId = 0;
+        public float LastAggroTime = 0f;//10 секунд тайминг
+        public FEnemy(Obj_AI_Hero hero)
+        {
+            LastAggroTime = 0f;
+            NetworkId = hero.NetworkId;
+        }
     }   
 }
