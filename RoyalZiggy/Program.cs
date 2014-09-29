@@ -9,13 +9,9 @@ using Color = System.Drawing.Color;
 //// Half of this stolen from Hellsing's code :* \\
 /* 
  * TODO:
- * Комбо: Q+W+E, R - как и в БОЛе
- * Smart W - аналогично ///Готово - ПРОВЕРИТЬ
  * Objective steal
  * Проверка всех интерраптов и гепклозеров ///ПРОВЕРИТЬ
  * Игнайт
- * Item update
- * Harass
 */
  
 namespace Ziggs
