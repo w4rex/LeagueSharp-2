@@ -1,3 +1,2 @@
 LeagueSharp
 ===========
-Soon. ™
