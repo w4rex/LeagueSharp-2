@@ -233,7 +233,7 @@ namespace RoyalAkali
                 }
             if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim);
             if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
-            if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width - 20));
+            if (W.IsReady() && W.InRange(victim.Position)) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width - 20));
             if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim);
             if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
         }
@@ -309,7 +309,7 @@ namespace RoyalAkali
         {
             Obj_AI_Base target = MinionManager.GetMinions(player.Position, 800, MinionTypes.All, MinionTeam.NotAlly)[0];
             foreach (Obj_AI_Base minion in ObjectManager.Get<Obj_AI_Base>())
-                if (minion.IsValidTarget(R.Range, true) && player.Distance(position) > minion.Distance(position) && minion.Distance(position) < target.Distance(position))
+                if (minion.IsValidTarget(R.Range, true) && player.Distance(target) < player.Distance(minion) && minion.Distance(position) < target.Distance(position))
                     if (mouseJump)
                     {
                         if (minion.Distance(position) < 200)
