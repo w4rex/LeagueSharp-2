@@ -1,0 +1,360 @@
+﻿using System;
+using System.Collections.Generic;
+using LeagueSharp;
+using LeagueSharp.Common;
+using SharpDX;
+using Color = System.Drawing.Color;
+
+namespace RoyalAkali
+{
+    class Program
+    {
+        private static readonly Obj_AI_Hero player = ObjectManager.Player;
+        private static Spell E;
+        private static Spell Q;
+        private static Spell R;
+        private static Spell W;
+        private static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
+        private static Orbwalking.Orbwalker orbwalker;
+        private static Obj_AI_Hero rektmate = default(Obj_AI_Hero);
+        private static SpellSlot IgniteSlot;
+        private static List<Spell> SpellList = new List<Spell>(){Q, W, E, R};
+
+        static void Main(string[] args)
+        {
+            CustomEvents.Game.OnGameLoad += OnGameLoad;
+        }
+
+        static void OnGameLoad(EventArgs args)
+        {
+            if (player.ChampionName != "Akali")
+                return;
+
+            LoadMenu();
+
+            Q = new Spell(SpellSlot.Q, 600);
+            W = new Spell(SpellSlot.W, 700);
+            E = new Spell(SpellSlot.E, 325);
+            R = new Spell(SpellSlot.R, 800);
+
+            IgniteSlot = player.GetSpellSlot("SummonerDot");
+
+            Drawing.OnDraw += onDraw;
+            Game.OnGameUpdate += onUpdate;
+
+            Game.PrintChat("Akali by princer007 Loaded. The original one.");
+            Console.WriteLine("\a \a \a");
+        }
+
+        static void LoadMenu()
+        {
+            Menu targetSelector = new Menu("Target Selector", "ts");
+            SimpleTs.AddToMenu(targetSelector);
+            menu.AddSubMenu(targetSelector);
+
+            Menu SOW = new Menu("Orbwalker", "orbwalker");
+            orbwalker = new Orbwalking.Orbwalker(SOW);
+            menu.AddSubMenu(SOW);
+
+            menu.AddSubMenu(new Menu("Combo Options", "combo"));
+            menu.SubMenu("combo").AddItem(new MenuItem("useQ", "Use Q in combo").SetValue(true));
+            menu.SubMenu("combo").AddItem(new MenuItem("useW", "Use W in combo").SetValue(true));
+            menu.SubMenu("combo").AddItem(new MenuItem("useE", "Use E in combo").SetValue(true));
+            menu.SubMenu("combo").AddItem(new MenuItem("useR", "Use R in combo").SetValue(true));
+
+            menu.AddSubMenu(new Menu("Harass Options", "harass"));
+            menu.SubMenu("harass").AddItem(new MenuItem("useQ", "Use Q in harass").SetValue(false));
+            menu.SubMenu("harass").AddItem(new MenuItem("useE", "Use E in harass").SetValue(true));
+
+            menu.AddSubMenu(new Menu("Lane Clear", "laneclear"));
+            menu.SubMenu("laneclear").AddItem(new MenuItem("useQ", "Use Q in laneclear").SetValue(true));
+            menu.SubMenu("laneclear").AddItem(new MenuItem("useE", "Use E in laneclear").SetValue(true));
+            menu.SubMenu("laneclear").AddItem(new MenuItem("hitCounter", "Use E if will hit min").SetValue(new Slider(3, 1, 6)));
+
+            menu.AddSubMenu(new Menu("Miscellaneous", "misc"));
+            menu.SubMenu("misc").AddItem(new MenuItem("escape", "Escape key").SetValue(new KeyBind('G', KeyBindType.Press)));
+            menu.SubMenu("misc").AddItem(new MenuItem("RCounter", "Do not escape if R<").SetValue(new Slider(1, 1, 3)));
+
+            var dmgAfterComboItem = new MenuItem("DamageAfterCombo", "Draw damage after a rotation").SetValue(true);
+            Utility.HpBarDamageIndicator.DamageToUnit += hero => (float)IsRapeble(hero);
+            Utility.HpBarDamageIndicator.Enabled = dmgAfterComboItem.GetValue<bool>();
+            dmgAfterComboItem.ValueChanged += delegate(object sender, OnValueChangeEventArgs eventArgs)
+            {
+                Utility.HpBarDamageIndicator.Enabled = eventArgs.GetNewValue<bool>();
+            };
+
+            Menu drawings = new Menu("Drawings", "drawings");
+            menu.AddSubMenu(drawings);
+            drawings.AddItem(new MenuItem("Qrange", "Q Range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
+            drawings.AddItem(new MenuItem("Wrange", "W Range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
+            drawings.AddItem(new MenuItem("Erange", "E Range").SetValue(new Circle(false, Color.FromArgb(150, Color.DarkRed))));
+            drawings.AddItem(dmgAfterComboItem);
+
+            menu.AddToMainMenu();
+        }
+
+        private static void onUpdate(EventArgs args)
+        {
+            Combo();
+            if (menu.SubMenu("misc").Item("escape").GetValue<KeyBind>().Active) Escape();
+        }
+
+        private static void onDraw(EventArgs args)
+        {
+            if (menu.SubMenu("misc").Item("escape").GetValue<KeyBind>().Active)
+                Utility.DrawCircle(Game.CursorPos, 200, W.IsReady() ? Color.Blue : Color.Red, 3);
+            foreach (var spell in SpellList)
+            {
+                var menuItem = menu.Item(spell.Slot + "range").GetValue<Circle>();
+                if (menuItem.Active)
+                {
+                    Utility.DrawCircle(player.Position, spell.Range, menuItem.Color);
+                }
+            }
+        }
+
+        private static void Combo()
+        {
+            switch (orbwalker.ActiveMode)
+            {
+                case Orbwalking.OrbwalkingMode.Combo:
+                    RapeTime();
+                    break;
+                case Orbwalking.OrbwalkingMode.Mixed:
+                    Harass();
+                    break;
+                case Orbwalking.OrbwalkingMode.LaneClear:
+                    if (menu.SubMenu("laneclear").Item("useQ").GetValue<bool>())
+                        castQ(false);
+                    if (menu.SubMenu("laneclear").Item("useE").GetValue<bool>())
+                        castE(false);
+                    break;
+            }
+        }
+
+        private static void Harass()
+        {
+            if (menu.SubMenu("harass").Item("useQ").GetValue<bool>())
+                castQ(true);
+            if (menu.SubMenu("harass").Item("useE").GetValue<bool>())
+                castE(true);
+        }
+
+        private static void castQ(bool mode)
+        {
+            if (!Q.IsReady()) return;
+            if (mode)
+            {
+                Obj_AI_Hero target = SimpleTs.GetTarget(Q.Range, SimpleTs.DamageType.Magical);
+                if (target == null || !target.IsValidTarget(Q.Range)) return;
+                Q.Cast(target, true);
+            }
+            else
+            {
+                foreach (Obj_AI_Base minion in MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy, MinionOrderTypes.Health))
+                    if (HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 999) < player.GetSpellDamage(minion, SpellSlot.Q) &&
+                        HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 999) > 0 &&
+                        player.Distance(minion) > Orbwalking.GetRealAutoAttackRange(player))
+                        Q.Cast(minion);
+            }
+        }
+
+        private static void castE(bool mode)
+        {
+            if (!E.IsReady()) return;
+            if (mode)
+            {
+                Obj_AI_Hero target = SimpleTs.GetTarget(E.Range, SimpleTs.DamageType.Magical);
+                if (target == null || !target.IsValidTarget(E.Range)) return;
+                if (hasBuff(target, "AkaliMota") && !E.IsReady() && Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(target))
+                    orbwalker.ForceTarget(target);
+                else
+                    E.Cast(target, true);
+            }
+            else
+            {   //Minions in E range                                                                            >= Value in menu
+                if (MinionManager.GetMinions(player.Position, E.Range, MinionTypes.All, MinionTeam.Enemy).Count >= menu.SubMenu("laneclear").Item("hitCounter").GetValue<Slider>().Value) E.Cast();
+            }
+        }
+
+        private static void RapeTime()
+        {
+            Obj_AI_Hero possibleVictim = SimpleTs.GetTarget(R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player), SimpleTs.DamageType.Magical);
+            if (IsRapeble(possibleVictim) > possibleVictim.Health) rektmate = possibleVictim;
+            else rektmate = default(Obj_AI_Hero);
+            if (rektmate != default(Obj_AI_Hero))
+            {
+                if (player.Distance(rektmate) < 1600 && player.Distance(rektmate) > Orbwalking.GetRealAutoAttackRange(player))
+                    castREscape(rektmate.Position);
+                else if (player.Distance(rektmate) < Orbwalking.GetRealAutoAttackRange(player))
+                    RaperinoCasterino(rektmate);
+            }
+            else
+            {
+                orbwalker.SetAttacks(!R.IsReady() && !Q.IsReady() && !E.IsReady());
+                if (menu.SubMenu("combo").Item("useQ").GetValue<bool>())
+                    castQ(true);
+                if (menu.SubMenu("combo").Item("useE").GetValue<bool>())
+                    castE(true);
+                if (menu.SubMenu("combo").Item("useR").GetValue<bool>())
+                {
+                    Obj_AI_Hero target = SimpleTs.GetTarget(R.Range, SimpleTs.DamageType.Magical);
+                    if ((target.IsValidTarget(R.Range) && target.Distance(player) > Orbwalking.GetRealAutoAttackRange(player)) || R.IsKillable(target))
+                        R.Cast(target, true);
+                }
+            }
+        }
+
+        private static void RaperinoCasterino(Obj_AI_Hero victim)
+        {
+            orbwalker.SetAttacks(!R.IsReady() && !Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
+            orbwalker.ForceTarget(victim);
+            foreach (var item in player.InventoryItems)
+                switch ((int)item.Id)
+                {
+                    case 3144:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
+                            player.Spellbook.CastSpell((SpellSlot)item.Slot);
+                        break;
+                    case 3146:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
+                            player.Spellbook.CastSpell((SpellSlot)item.Slot);
+                        break;
+                    case 3128:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
+                            player.Spellbook.CastSpell((SpellSlot)item.Slot);
+                        break;
+                }
+            if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim);
+            if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
+            if (W.IsReady() && W.InRange(victim.Position)) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width - 20));
+            if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim);
+            if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
+        }
+
+        private static double IsRapeble(Obj_AI_Hero victim)
+        {
+            double comboDamage = 0d;
+            if (Q.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q);
+            if (W.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.W);
+            comboDamage += player.GetAutoAttackDamage(victim, true);
+            comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcPassiveDmg());
+            comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcItemsDmg(victim));
+            foreach (var item in player.InventoryItems)
+                if ((int)item.Id == 3128)
+                    if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
+                        comboDamage *= 1.15;
+            if (R.IsReady() && ultiCount() > 2) comboDamage += player.GetSpellDamage(victim, SpellSlot.R);
+            if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready)
+                comboDamage += ObjectManager.Player.GetSummonerSpellDamage(victim, Damage.SummonerSpell.Ignite);
+            //MAAAAAAAAAAAAAD. I'm fucked up. Gotta get cup of hot tea :3
+            return comboDamage;
+        }
+
+        private static double CalcPassiveDmg()
+        {
+            return (0.06 + 0.01 * (player.FlatMagicDamageMod / 6)) * (player.FlatPhysicalDamageMod + player.BaseAttackDamage);
+        }
+
+        private static double CalcItemsDmg(Obj_AI_Hero victim)
+        {
+            double result = 0d;
+            foreach (var item in player.InventoryItems)
+                switch ((int)item.Id)
+                {
+                    case 3100: // LichBane
+                        result += player.BaseAttackDamage * 0.75 + player.FlatMagicDamageMod * 0.5;
+                        break;
+                    case 3057://Sheen
+                        result += player.BaseAttackDamage;
+                        break;
+                    case 3144:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
+                            result += 100d;
+                        break;
+                    case 3146:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
+                            result += 150d + player.FlatMagicDamageMod * 0.4;
+                        break;
+                    case 3128:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
+                            result += victim.MaxHealth * 0.2;
+                        break;
+                }
+
+            return result;
+        }
+
+        private static void Escape()
+        {
+            Vector3 cursorPos = Game.CursorPos;
+            Vector2 pos = V2E(player.Position, cursorPos, R.Range);
+            Vector2 pass = V2E(player.Position, cursorPos, 120);
+            Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(pass.X, pass.Y)).Send();
+            if (menu.SubMenu("misc").Item("RCounter").GetValue<Slider>().Value > ultiCount()) return;
+            if (!IsWall(pos) && IsPassWall(player.Position, pos.To3D()) && MinionManager.GetMinions(cursorPos, 800, MinionTypes.All, MinionTeam.NotAlly).Count < 1)
+                if (W.IsReady()) W.Cast(V2E(player.Position, cursorPos, W.Range));
+            castREscape(cursorPos, true);
+        }
+
+        private static void castREscape(Vector3 position, bool mouseJump = false)
+        {
+            Obj_AI_Base target = MinionManager.GetMinions(player.Position, 800, MinionTypes.All, MinionTeam.NotAlly)[0];
+            foreach (Obj_AI_Base minion in ObjectManager.Get<Obj_AI_Base>())
+                if (minion.IsValidTarget(R.Range, true) && player.Distance(target) < player.Distance(minion) && minion.Distance(position) < target.Distance(position))
+                    if (mouseJump)
+                    {
+                        if (minion.Distance(position) < 200)
+                            target = minion;
+                    }
+                    else
+                    {
+                        target = minion;
+                    }
+            if (R.IsReady() && R.InRange(target.Position))
+                if (mouseJump)
+                {
+                    if (target.Distance(position) < 200)
+                        R.Cast(target, true);
+                }
+                else
+                    R.Cast(target, true);
+        }
+
+        private static bool IsPassWall(Vector3 start, Vector3 end)
+        {
+            double count = Vector3.Distance(start, end);
+            for (uint i = 0; i <= count; i += 10)
+            {
+                Vector2 pos = V2E(start, end, i);
+                if (IsWall(pos)) return true;
+            }
+            return false;
+        }
+
+        private static int ultiCount()
+        {
+            foreach (BuffInstance buff in player.Buffs) 
+                if (buff.Name == "AkaliShadowDance")
+                    return buff.Count;
+            return 0;
+        }
+
+        private static bool IsWall(Vector2 pos)
+        {
+            return (NavMesh.GetCollisionFlags(pos.X, pos.Y) == CollisionFlags.Wall ||
+                    NavMesh.GetCollisionFlags(pos.X, pos.Y) == CollisionFlags.Building);
+        }
+
+        private static Vector2 V2E(Vector3 from, Vector3 direction, float distance)
+        {
+            return from.To2D() + distance * Vector3.Normalize(direction - from).To2D();
+        }
+        private static bool hasBuff(Obj_AI_Base target, string buffName)
+        {
+            foreach (BuffInstance buff in target.Buffs)
+                if (buff.Name == buffName) return true;
+            return false;
+        }
+    }
+}
