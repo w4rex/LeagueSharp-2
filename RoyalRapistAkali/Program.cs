@@ -7,6 +7,13 @@ using Color = System.Drawing.Color;
 
 namespace RoyalAkali
 {
+    //TODO
+    /*
+     * Smoother combo
+     * Faster raping
+     * Better last hit(e prediction)
+     * 
+    */
     class Program
     {
         private static readonly Obj_AI_Hero player = ObjectManager.Player;
@@ -18,7 +25,7 @@ namespace RoyalAkali
         private static Orbwalking.Orbwalker orbwalker;
         private static Obj_AI_Hero rektmate = default(Obj_AI_Hero);
         private static SpellSlot IgniteSlot;
-        private static List<Spell> SpellList = new List<Spell>(){Q, W, E, R};
+        private static List<Spell> SpellList;
 
         static void Main(string[] args)
         {
@@ -36,13 +43,13 @@ namespace RoyalAkali
             W = new Spell(SpellSlot.W, 700);
             E = new Spell(SpellSlot.E, 325);
             R = new Spell(SpellSlot.R, 800);
-
+            SpellList = new List<Spell>() { Q, W, E, R };
             IgniteSlot = player.GetSpellSlot("SummonerDot");
 
             Drawing.OnDraw += onDraw;
             Game.OnGameUpdate += onUpdate;
 
-            Game.PrintChat("Akali by princer007 Loaded. The original one.");
+            Game.PrintChat("Royal Rapist Akali by princer007 Loaded. The original one.");
             Console.WriteLine("\a \a \a");
         }
 
@@ -88,6 +95,7 @@ namespace RoyalAkali
             drawings.AddItem(new MenuItem("Qrange", "Q Range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
             drawings.AddItem(new MenuItem("Wrange", "W Range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
             drawings.AddItem(new MenuItem("Erange", "E Range").SetValue(new Circle(false, Color.FromArgb(150, Color.DarkRed))));
+            drawings.AddItem(new MenuItem("Rrange", "R Range").SetValue(new Circle(false, Color.FromArgb(150, Color.DarkRed))));
             drawings.AddItem(dmgAfterComboItem);
 
             menu.AddToMainMenu();
@@ -146,7 +154,7 @@ namespace RoyalAkali
             if (mode)
             {
                 Obj_AI_Hero target = SimpleTs.GetTarget(Q.Range, SimpleTs.DamageType.Magical);
-                if (target == null || !target.IsValidTarget(Q.Range)) return;
+                if (!target.IsValidTarget(Q.Range)) return;
                 Q.Cast(target, true);
             }
             else
@@ -184,14 +192,15 @@ namespace RoyalAkali
             else rektmate = default(Obj_AI_Hero);
             if (rektmate != default(Obj_AI_Hero))
             {
-                if (player.Distance(rektmate) < 1600 && player.Distance(rektmate) > Orbwalking.GetRealAutoAttackRange(player))
+                if (player.Distance(rektmate) < R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player) && player.Distance(rektmate) > Orbwalking.GetRealAutoAttackRange(player))
                     castREscape(rektmate.Position);
-                else if (player.Distance(rektmate) < Orbwalking.GetRealAutoAttackRange(player))
+                else if (player.Distance(rektmate) < Q.Range)
                     RaperinoCasterino(rektmate);
+                else Game.PrintChat("Something went wrong. Unreahable code");
             }
             else
             {
-                orbwalker.SetAttacks(!R.IsReady() && !Q.IsReady() && !E.IsReady());
+                orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady());
                 if (menu.SubMenu("combo").Item("useQ").GetValue<bool>())
                     castQ(true);
                 if (menu.SubMenu("combo").Item("useE").GetValue<bool>())
@@ -207,22 +216,19 @@ namespace RoyalAkali
 
         private static void RaperinoCasterino(Obj_AI_Hero victim)
         {
-            orbwalker.SetAttacks(!R.IsReady() && !Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
+            orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
             orbwalker.ForceTarget(victim);
             foreach (var item in player.InventoryItems)
                 switch ((int)item.Id)
                 {
                     case 3144:
-                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
-                            player.Spellbook.CastSpell((SpellSlot)item.Slot);
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
                         break;
                     case 3146:
-                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
-                            player.Spellbook.CastSpell((SpellSlot)item.Slot);
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
                         break;
                     case 3128:
-                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
-                            player.Spellbook.CastSpell((SpellSlot)item.Slot);
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
                         break;
                 }
             if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim);
@@ -235,7 +241,7 @@ namespace RoyalAkali
         private static double IsRapeble(Obj_AI_Hero victim)
         {
             double comboDamage = 0d;
-            if (Q.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q);
+            if (Q.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q)+player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35*Q.Level + 0.5*player.FlatMagicDamageMod));
             if (W.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.W);
             comboDamage += player.GetAutoAttackDamage(victim, true);
             comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcPassiveDmg());
@@ -263,9 +269,11 @@ namespace RoyalAkali
                 switch ((int)item.Id)
                 {
                     case 3100: // LichBane
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
                         result += player.BaseAttackDamage * 0.75 + player.FlatMagicDamageMod * 0.5;
                         break;
                     case 3057://Sheen
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
                         result += player.BaseAttackDamage;
                         break;
                     case 3144:
