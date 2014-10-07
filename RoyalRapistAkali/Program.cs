@@ -9,10 +9,10 @@ namespace RoyalAkali
 {
     //TODO
     /*
-     * Smoother combo
-     * Faster raping
      * Better last hit(e prediction)
-     * 
+     * Use W if < % HP and № enemies around
+     * Use W for bush vision(configure ward\W)
+     * Dont dive with ulti under towers unless you can kill enemy with R so you could get out with the stack you gain
     */
     class Program
     {
@@ -49,7 +49,7 @@ namespace RoyalAkali
             Drawing.OnDraw += onDraw;
             Game.OnGameUpdate += onUpdate;
 
-            Game.PrintChat("Royal Rapist Akali by princer007 Loaded. The original one.");
+            Game.PrintChat("Royal Rapist Akali by princer007 Loaded. Plz, excuse me Dr^drowranger. I do feel sorry.");
             Console.WriteLine("\a \a \a");
         }
 
@@ -106,6 +106,7 @@ namespace RoyalAkali
 
         private static void onUpdate(EventArgs args)
         {
+            orbwalker.SetAttacks(true);
             switch (orbwalker.ActiveMode)
             {
                 case Orbwalking.OrbwalkingMode.Combo:
@@ -132,8 +133,10 @@ namespace RoyalAkali
         private static void onDraw(EventArgs args)
         {
             if (menu.SubMenu("misc").Item("escape").GetValue<KeyBind>().Active)
+            {
                 Utility.DrawCircle(Game.CursorPos, 200, W.IsReady() ? Color.Blue : Color.Red, 3);
-
+                Utility.DrawCircle(player.Position, R.Range, menu.Item("Rrange").GetValue<Circle>().Color, 13);
+            }
             foreach (var spell in SpellList)
             {
                 var menuItem = menu.Item(spell.Slot + "range").GetValue<Circle>();
@@ -188,9 +191,9 @@ namespace RoyalAkali
             Obj_AI_Hero possibleVictim = SimpleTs.GetTarget(R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player), SimpleTs.DamageType.Magical);
             try
             {
-                if (rektmate.IsDead || Game.Time - assignTime > 3)
+                if (rektmate.IsDead || Game.Time - assignTime > 1.5)
                 {
-                    //Game.PrintChat("Unassign - " + rektmate.ChampionName + " dead: " + rektmate.IsDead);
+                    Console.WriteLine("Unassign - " + rektmate.ChampionName + " dead: " + rektmate.IsDead + "\n\n");
                     rektmate = default(Obj_AI_Hero);
                 }
             }
@@ -204,7 +207,7 @@ namespace RoyalAkali
                 {
                     rektmate = possibleVictim;
                     assignTime = Game.Time;
-                    //Game.PrintChat("Assign - " + rektmate.ChampionName + " time: " + assignTime + " dead: " + rektmate.IsDead);
+                    Console.WriteLine("Assign - " + rektmate.ChampionName + " time: " + assignTime+"\n\n");
                 }
             }
             catch (Exception ex)
@@ -217,7 +220,7 @@ namespace RoyalAkali
                     castREscape(rektmate.Position);
                 else if (player.Distance(rektmate) < Q.Range)
                     RaperinoCasterino(rektmate);
-                else Game.PrintChat("Something went wrong. Unreachable code");
+                else Console.WriteLine("Something went wrong. Unreachable code. Probably tower dive: " + (menu.SubMenu("misc").Item("TowerDive").GetValue<Slider>().Value < player.Health / player.MaxHealth && Utility.UnderTurret(rektmate, true)).ToString());
             }
             else
             {
@@ -262,16 +265,22 @@ namespace RoyalAkali
         private static double IsRapeble(Obj_AI_Hero victim)
         {
             double comboDamage = 0d;
-            if (Q.IsReady(2)) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q)+player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35*Q.Level + 0.5*player.FlatMagicDamageMod));
-            if (E.IsReady(2)) comboDamage += player.GetSpellDamage(victim, SpellSlot.E);
+            if (Q.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q)+player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35*Q.Level + 0.5*player.FlatMagicDamageMod));
+            if (E.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.E);
+
+            if (hasBuff(victim, "AkaliMota")) comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35 * Q.Level + 0.5 * player.FlatMagicDamageMod));
             //comboDamage += player.GetAutoAttackDamage(victim, true);
+
             comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcPassiveDmg());
             comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcItemsDmg(victim));
+
             foreach (var item in player.InventoryItems)
                 if ((int)item.Id == 3128)
                     if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
                         comboDamage *= 1.2;
-            if (ultiCount() > 0) comboDamage += player.GetSpellDamage(victim, SpellSlot.R);
+            if (hasBuff(victim, "deathfiregraspspell")) comboDamage *= 1.2;
+			
+            if (ultiCount() > 0) comboDamage += player.GetSpellDamage(victim, SpellSlot.R)*(ultiCount()-(int)(victim.Distance(player.Position)/R.Range));
             if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready)
                 comboDamage += ObjectManager.Player.GetSummonerSpellDamage(victim, Damage.SummonerSpell.Ignite);
             return comboDamage;
