@@ -24,8 +24,9 @@ namespace RoyalAkali
         private static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
         private static Orbwalking.Orbwalker orbwalker;
         private static Obj_AI_Hero rektmate = default(Obj_AI_Hero);
-        private static SpellSlot IgniteSlot;
+        private static SpellSlot IgniteSlot = player.GetSpellSlot("SummonerDot");
         private static List<Spell> SpellList;
+        private static float assignTime = 0f;
 
         static void Main(string[] args)
         {
@@ -44,7 +45,6 @@ namespace RoyalAkali
             E = new Spell(SpellSlot.E, 325);
             R = new Spell(SpellSlot.R, 800);
             SpellList = new List<Spell>() { Q, W, E, R };
-            IgniteSlot = player.GetSpellSlot("SummonerDot");
 
             Drawing.OnDraw += onDraw;
             Game.OnGameUpdate += onUpdate;
@@ -81,6 +81,8 @@ namespace RoyalAkali
             menu.AddSubMenu(new Menu("Miscellaneous", "misc"));
             menu.SubMenu("misc").AddItem(new MenuItem("escape", "Escape key").SetValue(new KeyBind('G', KeyBindType.Press)));
             menu.SubMenu("misc").AddItem(new MenuItem("RCounter", "Do not escape if R<").SetValue(new Slider(1, 1, 3)));
+            menu.SubMenu("misc").AddItem(new MenuItem("TowerDive", "Do not tower dive if your HP <").SetValue(new Slider(25, 1, 100)));
+            menu.SubMenu("misc").AddItem(new MenuItem("Enemies", "Do not rape if there is # enemies around target").SetValue(new Slider(0, 0, 5)));
 
             var dmgAfterComboItem = new MenuItem("DamageAfterCombo", "Draw damage after a rotation").SetValue(true);
             Utility.HpBarDamageIndicator.DamageToUnit += hero => (float)IsRapeble(hero);
@@ -96,6 +98,7 @@ namespace RoyalAkali
             drawings.AddItem(new MenuItem("Wrange", "W Range").SetValue(new Circle(true, Color.FromArgb(150, Color.IndianRed))));
             drawings.AddItem(new MenuItem("Erange", "E Range").SetValue(new Circle(false, Color.FromArgb(150, Color.DarkRed))));
             drawings.AddItem(new MenuItem("Rrange", "R Range").SetValue(new Circle(false, Color.FromArgb(150, Color.DarkRed))));
+            drawings.AddItem(new MenuItem("RAPE", "Draw instakill target").SetValue<bool>(true));
             drawings.AddItem(dmgAfterComboItem);
 
             menu.AddToMainMenu();
@@ -103,34 +106,19 @@ namespace RoyalAkali
 
         private static void onUpdate(EventArgs args)
         {
-            Combo();
-            if (menu.SubMenu("misc").Item("escape").GetValue<KeyBind>().Active) Escape();
-        }
-
-        private static void onDraw(EventArgs args)
-        {
-            if (menu.SubMenu("misc").Item("escape").GetValue<KeyBind>().Active)
-                Utility.DrawCircle(Game.CursorPos, 200, W.IsReady() ? Color.Blue : Color.Red, 3);
-            foreach (var spell in SpellList)
-            {
-                var menuItem = menu.Item(spell.Slot + "range").GetValue<Circle>();
-                if (menuItem.Active)
-                {
-                    Utility.DrawCircle(player.Position, spell.Range, menuItem.Color);
-                }
-            }
-        }
-
-        private static void Combo()
-        {
             switch (orbwalker.ActiveMode)
             {
                 case Orbwalking.OrbwalkingMode.Combo:
                     RapeTime();
                     break;
+
                 case Orbwalking.OrbwalkingMode.Mixed:
-                    Harass();
+                    if (menu.SubMenu("harass").Item("useQ").GetValue<bool>())
+                        castQ(true);
+                    if (menu.SubMenu("harass").Item("useE").GetValue<bool>())
+                        castE(true);
                     break;
+
                 case Orbwalking.OrbwalkingMode.LaneClear:
                     if (menu.SubMenu("laneclear").Item("useQ").GetValue<bool>())
                         castQ(false);
@@ -138,14 +126,22 @@ namespace RoyalAkali
                         castE(false);
                     break;
             }
+            if (menu.SubMenu("misc").Item("escape").GetValue<KeyBind>().Active) Escape();
         }
 
-        private static void Harass()
+        private static void onDraw(EventArgs args)
         {
-            if (menu.SubMenu("harass").Item("useQ").GetValue<bool>())
-                castQ(true);
-            if (menu.SubMenu("harass").Item("useE").GetValue<bool>())
-                castE(true);
+            if (menu.SubMenu("misc").Item("escape").GetValue<KeyBind>().Active)
+                Utility.DrawCircle(Game.CursorPos, 200, W.IsReady() ? Color.Blue : Color.Red, 3);
+
+            foreach (var spell in SpellList)
+            {
+                var menuItem = menu.Item(spell.Slot + "range").GetValue<Circle>();
+                if (menuItem.Active)
+                    Utility.DrawCircle(player.Position, spell.Range, menuItem.Color);
+            }
+            if (menu.SubMenu("drawings").Item("RAPE").GetValue<bool>() && rektmate != default(Obj_AI_Hero)) 
+                Utility.DrawCircle(rektmate.Position, 50, Color.ForestGreen);
         }
 
         private static void castQ(bool mode)
@@ -155,13 +151,15 @@ namespace RoyalAkali
             {
                 Obj_AI_Hero target = SimpleTs.GetTarget(Q.Range, SimpleTs.DamageType.Magical);
                 if (!target.IsValidTarget(Q.Range)) return;
-                Q.Cast(target, true);
+                Q.Cast(target);
             }
             else
             {
                 foreach (Obj_AI_Base minion in MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy, MinionOrderTypes.Health))
-                    if (HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 999) < player.GetSpellDamage(minion, SpellSlot.Q) &&
-                        HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 999) > 0 &&
+                    if (hasBuff(minion, "AkaliMota") && Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(minion)) orbwalker.ForceTarget(minion);
+                foreach (Obj_AI_Base minion in MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy, MinionOrderTypes.Health))
+                    if (HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 1000) < player.GetSpellDamage(minion, SpellSlot.Q) &&
+                        HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 1000) > 0 &&
                         player.Distance(minion) > Orbwalking.GetRealAutoAttackRange(player))
                         Q.Cast(minion);
             }
@@ -177,7 +175,7 @@ namespace RoyalAkali
                 if (hasBuff(target, "AkaliMota") && !E.IsReady() && Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(target))
                     orbwalker.ForceTarget(target);
                 else
-                    E.Cast(target, true);
+                    E.Cast(target);
             }
             else
             {   //Minions in E range                                                                            >= Value in menu
@@ -188,15 +186,38 @@ namespace RoyalAkali
         private static void RapeTime()
         {
             Obj_AI_Hero possibleVictim = SimpleTs.GetTarget(R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player), SimpleTs.DamageType.Magical);
-            if (IsRapeble(possibleVictim) > possibleVictim.Health) rektmate = possibleVictim;
-            else rektmate = default(Obj_AI_Hero);
+            try
+            {
+                if (rektmate.IsDead || Game.Time - assignTime > 3)
+                {
+                    //Game.PrintChat("Unassign - " + rektmate.ChampionName + " dead: " + rektmate.IsDead);
+                    rektmate = default(Obj_AI_Hero);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            try
+            {
+                if (rektmate == default(Obj_AI_Hero) && IsRapeble(possibleVictim) > possibleVictim.Health)
+                {
+                    rektmate = possibleVictim;
+                    assignTime = Game.Time;
+                    //Game.PrintChat("Assign - " + rektmate.ChampionName + " time: " + assignTime + " dead: " + rektmate.IsDead);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
             if (rektmate != default(Obj_AI_Hero))
             {
-                if (player.Distance(rektmate) < R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player) && player.Distance(rektmate) > Orbwalking.GetRealAutoAttackRange(player))
+                if (!(menu.SubMenu("misc").Item("TowerDive").GetValue<Slider>().Value < player.Health/player.MaxHealth && Utility.UnderTurret(rektmate, true)) && player.Distance(rektmate) < R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player) && player.Distance(rektmate) > Orbwalking.GetRealAutoAttackRange(player))
                     castREscape(rektmate.Position);
                 else if (player.Distance(rektmate) < Q.Range)
                     RaperinoCasterino(rektmate);
-                else Game.PrintChat("Something went wrong. Unreahable code");
+                else Game.PrintChat("Something went wrong. Unreachable code");
             }
             else
             {
@@ -209,7 +230,7 @@ namespace RoyalAkali
                 {
                     Obj_AI_Hero target = SimpleTs.GetTarget(R.Range, SimpleTs.DamageType.Magical);
                     if ((target.IsValidTarget(R.Range) && target.Distance(player) > Orbwalking.GetRealAutoAttackRange(player)) || R.IsKillable(target))
-                        R.Cast(target, true);
+                        R.Cast(target);
                 }
             }
         }
@@ -241,19 +262,18 @@ namespace RoyalAkali
         private static double IsRapeble(Obj_AI_Hero victim)
         {
             double comboDamage = 0d;
-            if (Q.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q)+player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35*Q.Level + 0.5*player.FlatMagicDamageMod));
-            if (W.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.W);
-            comboDamage += player.GetAutoAttackDamage(victim, true);
+            if (Q.IsReady(2)) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q)+player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35*Q.Level + 0.5*player.FlatMagicDamageMod));
+            if (E.IsReady(2)) comboDamage += player.GetSpellDamage(victim, SpellSlot.E);
+            //comboDamage += player.GetAutoAttackDamage(victim, true);
             comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcPassiveDmg());
             comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcItemsDmg(victim));
             foreach (var item in player.InventoryItems)
                 if ((int)item.Id == 3128)
                     if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
-                        comboDamage *= 1.15;
-            if (R.IsReady() && ultiCount() > 2) comboDamage += player.GetSpellDamage(victim, SpellSlot.R);
+                        comboDamage *= 1.2;
+            if (ultiCount() > 0) comboDamage += player.GetSpellDamage(victim, SpellSlot.R);
             if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready)
                 comboDamage += ObjectManager.Player.GetSummonerSpellDamage(victim, Damage.SummonerSpell.Ignite);
-            //MAAAAAAAAAAAAAD. I'm fucked up. Gotta get cup of hot tea :3
             return comboDamage;
         }
 
@@ -286,7 +306,7 @@ namespace RoyalAkali
                         break;
                     case 3128:
                         if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
-                            result += victim.MaxHealth * 0.2;
+                            result += victim.MaxHealth * 0.15;
                         break;
                 }
 
@@ -300,7 +320,7 @@ namespace RoyalAkali
             Vector2 pass = V2E(player.Position, cursorPos, 120);
             Packet.C2S.Move.Encoded(new Packet.C2S.Move.Struct(pass.X, pass.Y)).Send();
             if (menu.SubMenu("misc").Item("RCounter").GetValue<Slider>().Value > ultiCount()) return;
-            if (!IsWall(pos) && IsPassWall(player.Position, pos.To3D()) && MinionManager.GetMinions(cursorPos, 800, MinionTypes.All, MinionTeam.NotAlly).Count < 1)
+            if (!IsWall(pos) && IsPassWall(player.Position, pos.To3D()) && MinionManager.GetMinions(cursorPos, 300, MinionTypes.All, MinionTeam.NotAlly).Count < 1)
                 if (W.IsReady()) W.Cast(V2E(player.Position, cursorPos, W.Range));
             castREscape(cursorPos, true);
         }
@@ -316,17 +336,15 @@ namespace RoyalAkali
                             target = minion;
                     }
                     else
-                    {
                         target = minion;
-                    }
             if (R.IsReady() && R.InRange(target.Position))
                 if (mouseJump)
                 {
                     if (target.Distance(position) < 200)
-                        R.Cast(target, true);
+                        R.Cast(target);
                 }
                 else
-                    R.Cast(target, true);
+                    R.Cast(target);
         }
 
         private static bool IsPassWall(Vector3 start, Vector3 end)
