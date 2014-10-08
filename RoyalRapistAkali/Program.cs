@@ -48,11 +48,16 @@ namespace RoyalAkali
 
             Drawing.OnDraw += onDraw;
             Game.OnGameUpdate += onUpdate;
+            Obj_AI_Hero.OnProcessSpellCast += OnCast;
 
             Game.PrintChat("Royal Rapist Akali by princer007 Loaded. Plz, excuse me Dr^drowranger. I do feel sorry.");
             Console.WriteLine("\a \a \a");
         }
-
+        static void OnCast(LeagueSharp.Obj_AI_Base sender, LeagueSharp.GameObjectProcessSpellCastEventArgs args)
+        {
+            if (!sender.IsMe) return;
+            //Console.WriteLine(args.SData.Name + " was sent on " + args.Target.Name+" in "+Game.Time);
+        }
         static void LoadMenu()
         {
             Menu targetSelector = new Menu("Target Selector", "ts");
@@ -145,6 +150,12 @@ namespace RoyalAkali
             }
             if (menu.SubMenu("drawings").Item("RAPE").GetValue<bool>() && rektmate != default(Obj_AI_Hero)) 
                 Utility.DrawCircle(rektmate.Position, 50, Color.ForestGreen);
+            /*
+            Drawing.DrawLine(Drawing.WorldToScreen(debugTarget), Drawing.WorldToScreen(debugJump), 3, Color.AliceBlue);
+            Drawing.DrawLine(Drawing.WorldToScreen(debugTarget), Drawing.WorldToScreen(debugPlayer), 3, Color.Aquamarine);
+            Drawing.DrawText(Drawing.WorldToScreen(debugTarget).X, Drawing.WorldToScreen(debugTarget).Y, Color.PowderBlue, debugTargetDist.ToString());
+            Drawing.DrawText(Drawing.WorldToScreen(debugJump).X, Drawing.WorldToScreen(debugJump).Y, Color.PowderBlue, debugJumpDist.ToString());
+            */
         }
 
         private static void castQ(bool mode)
@@ -193,34 +204,27 @@ namespace RoyalAkali
             {
                 if (rektmate.IsDead || Game.Time - assignTime > 1.5)
                 {
-                    Console.WriteLine("Unassign - " + rektmate.ChampionName + " dead: " + rektmate.IsDead + "\n\n");
+                    //Console.WriteLine("Unassign - " + rektmate.ChampionName + " dead: " + rektmate.IsDead + "\n\n");
                     rektmate = default(Obj_AI_Hero);
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+            }catch (Exception ex){}
             try
             {
                 if (rektmate == default(Obj_AI_Hero) && IsRapeble(possibleVictim) > possibleVictim.Health)
                 {
                     rektmate = possibleVictim;
                     assignTime = Game.Time;
-                    Console.WriteLine("Assign - " + rektmate.ChampionName + " time: " + assignTime+"\n\n");
+                    //Console.WriteLine("Assign - " + rektmate.ChampionName + " time: " + assignTime+"\n\n");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+            }catch (Exception ex){}
             if (rektmate != default(Obj_AI_Hero))
             {
-                if (!(menu.SubMenu("misc").Item("TowerDive").GetValue<Slider>().Value < player.Health/player.MaxHealth && Utility.UnderTurret(rektmate, true)) && player.Distance(rektmate) < R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player) && player.Distance(rektmate) > Orbwalking.GetRealAutoAttackRange(player))
+                //!(menu.SubMenu("misc").Item("TowerDive").GetValue<Slider>().Value < player.Health/player.MaxHealth && Utility.UnderTurret(rektmate, true)) && 
+                if (player.Distance(rektmate) < R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player) && player.Distance(rektmate) > Q.Range)
                     castREscape(rektmate.Position);
                 else if (player.Distance(rektmate) < Q.Range)
                     RaperinoCasterino(rektmate);
-                else Console.WriteLine("Something went wrong. Unreachable code. Probably tower dive: " + (menu.SubMenu("misc").Item("TowerDive").GetValue<Slider>().Value < player.Health / player.MaxHealth && Utility.UnderTurret(rektmate, true)).ToString());
+                else rektmate = default(Obj_AI_Hero);//Target is out of range. Unassign.
             }
             else
             {
@@ -240,26 +244,34 @@ namespace RoyalAkali
 
         private static void RaperinoCasterino(Obj_AI_Hero victim)
         {
-            orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
-            orbwalker.ForceTarget(victim);
-            foreach (var item in player.InventoryItems)
-                switch ((int)item.Id)
-                {
-                    case 3144:
-                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
-                        break;
-                    case 3146:
-                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
-                        break;
-                    case 3128:
-                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
-                        break;
-                }
-            if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim);
-            if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
-            if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width - 20));
-            if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim);
-            if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
+            try
+            {
+                orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
+                orbwalker.ForceTarget(victim);
+                foreach (var item in player.InventoryItems)
+                    switch ((int)item.Id)
+                    {
+                        case 3144:
+                            if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
+                            break;
+                        case 3146:
+                            if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
+                            break;
+                        case 3128:
+                            if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
+                            break;
+                    }
+                if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim);
+                if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
+                if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20));
+                if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim);
+                if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
         private static double IsRapeble(Obj_AI_Hero victim)
@@ -338,22 +350,27 @@ namespace RoyalAkali
         {
             Obj_AI_Base target = MinionManager.GetMinions(player.Position, 800, MinionTypes.All, MinionTeam.NotAlly)[0];
             foreach (Obj_AI_Base minion in ObjectManager.Get<Obj_AI_Base>())
-                if (minion.IsValidTarget(R.Range, true) && player.Distance(position) > minion.Distance(position) && minion.Distance(position) < target.Distance(position))
+                if (minion.IsValidTarget(R.Range, true) && player.Distance(position, true) > minion.Distance(position, true) && minion.Distance(position, true) < target.Distance(position, true))
                     if (mouseJump)
                     {
                         if (minion.Distance(position) < 200)
                             target = minion;
                     }
                     else
+                    {
+                        Console.WriteLine("Distance T-M: " + minion.Distance(position) + "  Distance T-P: " + player.Distance(position));
+                        Console.WriteLine("Minion - X:" + minion.Position.X + "Y: " + minion.Position.Y + ",  player - X:" + player.Position.X + "Y: " + player.Position.Y + ",  position - X:" + position.X + "Y: " + position.Y);
                         target = minion;
+                    }
             if (R.IsReady() && R.InRange(target.Position))
                 if (mouseJump)
                 {
                     if (target.Distance(position) < 200)
                         R.Cast(target);
                 }
-                else
+                else if(player.Distance(position, true) > target.Distance(position, true) && ((int)(player.Distance(position)/R.Range)) < ultiCount())
                     R.Cast(target);
+
         }
 
         private static bool IsPassWall(Vector3 start, Vector3 end)
@@ -389,6 +406,12 @@ namespace RoyalAkali
         {
             foreach (BuffInstance buff in target.Buffs)
                 if (buff.Name == buffName) return true;
+            return false;
+        }
+
+        private static bool ableToGapclose(Obj_AI_Base target)
+        {
+
             return false;
         }
     }
