@@ -1,5 +1,6 @@
 ﻿﻿using System;
 using System.Collections.Generic;
+using System.Net;
 using LeagueSharp;
 using LeagueSharp.Common;
 using SharpDX;
@@ -18,6 +19,7 @@ namespace RoyalAkali
     {
         //////////////////////////////
         static readonly Obj_AI_Hero player = ObjectManager.Player;
+        static readonly string localVersion = "1.03";
 
         static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
         static Orbwalking.Orbwalker orbwalker;
@@ -44,6 +46,8 @@ namespace RoyalAkali
             if (player.ChampionName != "Akali")
                 return;
 
+            UpdateChecks();
+
             LoadMenu();
 
             Q = new Spell(SpellSlot.Q, 600);
@@ -58,6 +62,7 @@ namespace RoyalAkali
             //Obj_AI_Hero.OnProcessSpellCast += OnCast;
 
             Game.PrintChat("Royal Rapist Akali by princer007 Loaded. More rape for the god of rape! ( ^_^)");
+            Game.PrintChat("--------------------------------------------------------------------------------");
             Console.WriteLine("\a \a \a");
         }
 
@@ -452,6 +457,19 @@ namespace RoyalAkali
             drawings.AddItem(dmgAfterComboItem);
 
             menu.AddToMainMenu();
+        }
+
+        static void UpdateChecks()
+        {
+            //https://raw.github.com/princer007/LeagueSharp/master/RoyalRapistAkali/version
+            WebClient client = new WebClient();
+            string version = client.DownloadString("https://raw.github.com/princer007/LeagueSharp/master/RoyalRapistAkali/version");
+            Game.PrintChat("--------------------------------------------------------------------------------");
+            if (version.Remove(4).Equals(localVersion))
+                Game.PrintChat("== Your copy of Royal Rapist Akali is updated! GL & HF! ==");
+            else
+                Game.PrintChat("== Royal Rapist Akali have an update. Get it ASAP! ==");
+
         }
     }
 }
