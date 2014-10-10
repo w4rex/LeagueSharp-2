@@ -29,6 +29,7 @@ namespace RoyalAkali
         static Spell R;
         static Spell W;
         static SpellSlot IgniteSlot = player.GetSpellSlot("SummonerDot");
+        static bool packetCast = false;
 
         static Obj_AI_Hero rektmate = default(Obj_AI_Hero);
         static float assignTime = 0f;
@@ -76,6 +77,7 @@ namespace RoyalAkali
 
         static void OnUpdate(EventArgs args)
         {
+            packetCast = menu.Item("packets").GetValue<bool>();
             orbwalker.SetAttacks(true);
             if(menu.Item("RKillsteal").GetValue<bool>())
                 foreach (Obj_AI_Hero enemy in ObjectManager.Get<Obj_AI_Hero>())
@@ -212,7 +214,7 @@ namespace RoyalAkali
                 {
                     Obj_AI_Hero target = SimpleTs.GetTarget(R.Range, SimpleTs.DamageType.Magical);
                     if ((target.IsValidTarget(R.Range) && target.Distance(player) > Orbwalking.GetRealAutoAttackRange(player)) || R.IsKillable(target))
-                        R.Cast(target);
+                        R.Cast(target, packetCast);
                 }
             }
         }
@@ -228,7 +230,7 @@ namespace RoyalAkali
                 if(enemy.Distance(player) < 400) ++enemiesAround;
             if (menu.Item("PanicW").GetValue<Slider>().Value > enemiesAround && menu.Item("PanicWN").GetValue<Slider>().Value < (int)(player.Health / player.MaxHealth * 100))
                 return;
-            W.Cast(player.Position);
+            W.Cast(player.Position, packetCast);
         }
 
         static void RaperinoCasterino(Obj_AI_Hero victim)
@@ -250,10 +252,10 @@ namespace RoyalAkali
                             if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
                             break;
                     }
-                if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim);
+                if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim, packetCast);
                 if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
-                if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20));
-                if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim);
+                if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20), packetCast);
+                if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim, packetCast);
                 if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
 
             }
@@ -357,10 +359,10 @@ namespace RoyalAkali
                 if (mouseJump)
                 {
                     if (target.Distance(position) < 200)
-                        R.Cast(target);
+                        R.CastOnUnit(target, packetCast);
                 }
                 else if (player.Distance(position, true) > target.Distance(position, true) && ((int)(player.Distance(position) / R.Range)) < ultiCount())
-                    R.Cast(target);
+                    R.CastOnUnit(target, packetCast);
 
         }
 
@@ -435,6 +437,7 @@ namespace RoyalAkali
             menu.SubMenu("misc").AddItem(new MenuItem("escape", "Escape key").SetValue(new KeyBind('G', KeyBindType.Press)));
             menu.SubMenu("misc").AddItem(new MenuItem("RCounter", "Do not escape if R<").SetValue(new Slider(1, 1, 3)));
             menu.SubMenu("misc").AddItem(new MenuItem("RKillsteal", "Always try to KS with R").SetValue(false));
+            menu.SubMenu("misc").AddItem(new MenuItem("packets", "Cast spells using packets").SetValue(false));
             menu.SubMenu("misc").AddItem(new MenuItem("", "                     Panic W:"));
             menu.SubMenu("misc").AddItem(new MenuItem("PanicW", "If # of enemies around").SetValue(new Slider(1, 1, 5)));
             menu.SubMenu("misc").AddItem(new MenuItem("PanicWN", "If your %HP < ").SetValue(new Slider(25, 0, 100)));
@@ -461,7 +464,6 @@ namespace RoyalAkali
 
         static void UpdateChecks()
         {
-            //https://raw.github.com/princer007/LeagueSharp/master/RoyalRapistAkali/version
             WebClient client = new WebClient();
             string version = client.DownloadString("https://raw.github.com/princer007/LeagueSharp/master/RoyalRapistAkali/version");
             Game.PrintChat("--------------------------------------------------------------------------------");
