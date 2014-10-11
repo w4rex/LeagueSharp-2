@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using LeagueSharp;
@@ -46,11 +46,16 @@ namespace RoyalAkali
         {
             if (player.ChampionName != "Akali")
                 return;
-
-            //UpdateChecks();
-
-            LoadMenu();
-
+            Game.PrintChat("--------------------------------------------------------------------------------");
+            UpdateChecks();
+            try
+            {
+                LoadMenu();
+            }
+            catch (Exception ex)
+            {
+                Game.PrintChat("Mistake occured when loading menu");
+            }
             Q = new Spell(SpellSlot.Q, 600);
             W = new Spell(SpellSlot.W, 700);
             E = new Spell(SpellSlot.E, 325);
@@ -410,9 +415,11 @@ namespace RoyalAkali
 
         static void LoadMenu()
         {
+            /*
             Menu targetSelector = new Menu("Target Selector", "ts");
             SimpleTs.AddToMenu(targetSelector);
             menu.AddSubMenu(targetSelector);
+            */
 
             Menu SOW = new Menu("Orbwalker", "orbwalker");
             orbwalker = new Orbwalking.Orbwalker(SOW);
@@ -466,7 +473,6 @@ namespace RoyalAkali
         {
             WebClient client = new WebClient();
             string version = client.DownloadString("https://raw.github.com/princer007/LeagueSharp/master/RoyalRapistAkali/version");
-            Game.PrintChat("--------------------------------------------------------------------------------");
             if (version.Remove(4).Equals(localVersion))
                 Game.PrintChat("== Your copy of Royal Rapist Akali is updated! GL & HF! ==");
             else
