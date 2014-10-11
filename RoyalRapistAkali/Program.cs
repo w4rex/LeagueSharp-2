@@ -19,7 +19,7 @@ namespace RoyalAkali
     {
         //////////////////////////////
         static readonly Obj_AI_Hero player = ObjectManager.Player;
-        static readonly string localVersion = "1.04";
+        static readonly string localVersion = "1.05";
 
         static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
         static Orbwalking.Orbwalker orbwalker;
@@ -46,6 +46,12 @@ namespace RoyalAkali
         {
             if (player.ChampionName != "Akali")
                 return;
+
+            Q = new Spell(SpellSlot.Q, 600);
+            W = new Spell(SpellSlot.W, 700);
+            E = new Spell(SpellSlot.E, 325);
+            R = new Spell(SpellSlot.R, 800);
+
             Game.PrintChat("--------------------------------------------------------------------------------");
             UpdateChecks();
             try
@@ -56,10 +62,6 @@ namespace RoyalAkali
             {
                 Game.PrintChat("Mistake occured when loading menu");
             }
-            Q = new Spell(SpellSlot.Q, 600);
-            W = new Spell(SpellSlot.W, 700);
-            E = new Spell(SpellSlot.E, 325);
-            R = new Spell(SpellSlot.R, 800);
 
             SpellList = new List<Spell>() { Q, W, E, R };
 
@@ -201,7 +203,7 @@ namespace RoyalAkali
             {
                 //!(menu.SubMenu("misc").Item("TowerDive").GetValue<Slider>().Value < player.Health/player.MaxHealth && Utility.UnderTurret(rektmate, true)) && 
                 if (player.Distance(rektmate) < R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player) && player.Distance(rektmate) > Q.Range)
-                    castREscape(rektmate.Position);
+                    CastR(rektmate.Position);
                 else if (player.Distance(rektmate) < Q.Range)
                     RaperinoCasterino(rektmate);
                 else rektmate = default(Obj_AI_Hero);//Target is out of range. Unassign.
@@ -232,7 +234,7 @@ namespace RoyalAkali
             //
             byte enemiesAround = 0;
             foreach(Obj_AI_Hero enemy in ObjectManager.Get<Obj_AI_Hero>())
-                if(enemy.Distance(player) < 400) ++enemiesAround;
+                if(enemy.IsEnemy && enemy.Distance(player) < 400) enemiesAround++;
             if (menu.Item("PanicW").GetValue<Slider>().Value > enemiesAround && menu.Item("PanicWN").GetValue<Slider>().Value < (int)(player.Health / player.MaxHealth * 100))
                 return;
             W.Cast(player.Position, packetCast);
@@ -341,10 +343,10 @@ namespace RoyalAkali
             if (menu.SubMenu("misc").Item("RCounter").GetValue<Slider>().Value > ultiCount()) return;
             if (!IsWall(pos) && IsPassWall(player.Position, pos.To3D()) && MinionManager.GetMinions(cursorPos, 300, MinionTypes.All, MinionTeam.NotAlly).Count < 1)
                 if (W.IsReady()) W.Cast(V2E(player.Position, cursorPos, W.Range));
-            castREscape(cursorPos, true);
+            CastR(cursorPos, true);
         }
 
-        static void castREscape(Vector3 position, bool mouseJump = false)
+        static void CastR(Vector3 position, bool mouseJump = false)
         {
             Obj_AI_Base target = MinionManager.GetMinions(player.Position, 800, MinionTypes.All, MinionTeam.NotAlly)[0];
             foreach (Obj_AI_Base minion in ObjectManager.Get<Obj_AI_Base>())
