@@ -47,7 +47,7 @@ namespace RoyalAkali
             if (player.ChampionName != "Akali")
                 return;
 
-            UpdateChecks();
+            //UpdateChecks();
 
             LoadMenu();
 
