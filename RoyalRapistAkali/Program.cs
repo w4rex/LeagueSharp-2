@@ -19,7 +19,7 @@ namespace RoyalAkali
     {
         //////////////////////////////
         static readonly Obj_AI_Hero player = ObjectManager.Player;
-        static readonly string localVersion = "1.03";
+        static readonly string localVersion = "1.06";
 
         static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
         static Orbwalking.Orbwalker orbwalker;
@@ -47,10 +47,6 @@ namespace RoyalAkali
             if (player.ChampionName != "Akali")
                 return;
 
-            UpdateChecks();
-
-            LoadMenu();
-
             Q = new Spell(SpellSlot.Q, 600);
             W = new Spell(SpellSlot.W, 700);
             E = new Spell(SpellSlot.E, 325);
@@ -58,20 +54,31 @@ namespace RoyalAkali
 
             SpellList = new List<Spell>() { Q, W, E, R };
 
+            try
+            {
+                LoadMenu();
+            }
+            catch (Exception ex)
+            {
+                Game.PrintChat("Mistake occurred when loading menu");
+            }
+
+            UpdateChecks();
+            Console.WriteLine("\a \a \a");
             Drawing.OnDraw += OnDraw;
             Game.OnGameUpdate += OnUpdate;
             //Obj_AI_Hero.OnProcessSpellCast += OnCast;
-
-            Game.PrintChat("Royal Rapist Akali by princer007 Loaded. More rape for the god of rape! ( ^_^)");
-            Game.PrintChat("--------------------------------------------------------------------------------");
-            Console.WriteLine("\a \a \a");
         }
 
         //TODO: Remove
         static void OnCast(LeagueSharp.Obj_AI_Base sender, LeagueSharp.GameObjectProcessSpellCastEventArgs args)
         {
-            if (!sender.IsMe) return;
-            //Console.WriteLine(args.SData.Name + " was sent on " + args.Target.Name+" in "+Game.Time);
+            if (!sender.IsEnemy) return;
+            if (args.SData.Name == "TrinketTotemLvl3B" || args.SData.Name == "VisionWard" && menu.SubMenu("misc").Item("antipink").GetValue<bool>())
+            {
+                if (args.End.Distance(player.Position) < 1200) 
+                    Utility.DelayAction.Add(200, () => AntiPink(args.End));
+            }
         }
         //
 
@@ -121,7 +128,7 @@ namespace RoyalAkali
                     Utility.DrawCircle(player.Position, spell.Range, menuItem.Color);
             }
             if (menu.SubMenu("drawings").Item("RAPE").GetValue<bool>() && rektmate != default(Obj_AI_Hero))
-                Utility.DrawCircle(rektmate.Position, 50, Color.ForestGreen);
+                Utility.DrawCircle(rektmate.Position, 70, Color.ForestGreen, 8);
             /*
             Drawing.DrawLine(Drawing.WorldToScreen(debugTarget), Drawing.WorldToScreen(debugJump), 3, Color.AliceBlue);
             Drawing.DrawLine(Drawing.WorldToScreen(debugTarget), Drawing.WorldToScreen(debugPlayer), 3, Color.Aquamarine);
@@ -130,7 +137,28 @@ namespace RoyalAkali
             */
         }
 
-        private static void CastQ(bool mode)
+        static void AntiPink(Vector3 position)
+        {
+            float pd = player.Distance(position);
+            foreach (var item in player.InventoryItems)
+                switch (item.Name)
+                {
+                    case "TrinketSweeperLvl1":
+                        if (pd < 800)
+                            item.UseItem(V2E(player.Position, position, 400).To3D());
+                        break;
+                    case "TrinketSweeperLvl2":
+                        if (pd < 1200)
+                            item.UseItem(V2E(player.Position, position, 600).To3D());
+                        break;
+                    case "TrinketSweeperLvl3":
+                        if (pd < 1200)
+                            item.UseItem(V2E(player.Position, position, 600).To3D());
+                        break;
+                }
+        }
+
+        static void CastQ(bool mode)
         {
             if (!Q.IsReady()) return;
             if (mode)
@@ -152,7 +180,7 @@ namespace RoyalAkali
             }
         }
 
-        private static void CastE(bool mode)
+        static void CastE(bool mode)
         {
             if (!E.IsReady()) return;
             if (mode)
@@ -170,7 +198,7 @@ namespace RoyalAkali
             }
         }
 
-        private static void RapeTime()
+        static void RapeTime()
         {
             Obj_AI_Hero possibleVictim = SimpleTs.GetTarget(R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player), SimpleTs.DamageType.Magical);
             try
@@ -196,7 +224,7 @@ namespace RoyalAkali
             {
                 //!(menu.SubMenu("misc").Item("TowerDive").GetValue<Slider>().Value < player.Health/player.MaxHealth && Utility.UnderTurret(rektmate, true)) && 
                 if (player.Distance(rektmate) < R.Range * 2 + Orbwalking.GetRealAutoAttackRange(player) && player.Distance(rektmate) > Q.Range)
-                    castREscape(rektmate.Position);
+                    CastR(rektmate.Position);
                 else if (player.Distance(rektmate) < Q.Range)
                     RaperinoCasterino(rektmate);
                 else rektmate = default(Obj_AI_Hero);//Target is out of range. Unassign.
@@ -227,7 +255,7 @@ namespace RoyalAkali
             //
             byte enemiesAround = 0;
             foreach(Obj_AI_Hero enemy in ObjectManager.Get<Obj_AI_Hero>())
-                if(enemy.Distance(player) < 400) ++enemiesAround;
+                if(enemy.IsEnemy && enemy.Distance(player) < 400) enemiesAround++;
             if (menu.Item("PanicW").GetValue<Slider>().Value > enemiesAround && menu.Item("PanicWN").GetValue<Slider>().Value < (int)(player.Health / player.MaxHealth * 100))
                 return;
             W.Cast(player.Position, packetCast);
@@ -235,34 +263,26 @@ namespace RoyalAkali
 
         static void RaperinoCasterino(Obj_AI_Hero victim)
         {
-            try
-            {
-                orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
-                orbwalker.ForceTarget(victim);
-                foreach (var item in player.InventoryItems)
-                    switch ((int)item.Id)
-                    {
-                        case 3144:
-                            if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
-                            break;
-                        case 3146:
-                            if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
-                            break;
-                        case 3128:
-                            if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
-                            break;
-                    }
-                if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim, packetCast);
-                if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
-                if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20), packetCast);
-                if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim, packetCast);
-                if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
-
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+            orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
+            orbwalker.ForceTarget(victim);
+            foreach (var item in player.InventoryItems)
+                switch ((int)item.Id)
+                {
+                    case 3144:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
+                        break;
+                    case 3146:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
+                        break;
+                    case 3128:
+                        if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
+                        break;
+                }
+            if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim, packetCast);
+            if (E.IsReady() && E.InRange(victim.Position)) E.CastIfWillHit(victim, 1, packetCast);
+            if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20), packetCast);
+            if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim, packetCast);
+            if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
         }
 
         static double IsRapeble(Obj_AI_Hero victim)
@@ -336,12 +356,12 @@ namespace RoyalAkali
             if (menu.SubMenu("misc").Item("RCounter").GetValue<Slider>().Value > ultiCount()) return;
             if (!IsWall(pos) && IsPassWall(player.Position, pos.To3D()) && MinionManager.GetMinions(cursorPos, 300, MinionTypes.All, MinionTeam.NotAlly).Count < 1)
                 if (W.IsReady()) W.Cast(V2E(player.Position, cursorPos, W.Range));
-            castREscape(cursorPos, true);
+            CastR(cursorPos, true);
         }
 
-        static void castREscape(Vector3 position, bool mouseJump = false)
+        static void CastR(Vector3 position, bool mouseJump = false)
         {
-            Obj_AI_Base target = MinionManager.GetMinions(player.Position, 800, MinionTypes.All, MinionTeam.NotAlly)[0];
+            Obj_AI_Base target = player;
             foreach (Obj_AI_Base minion in ObjectManager.Get<Obj_AI_Base>())
                 if (minion.IsValidTarget(R.Range, true) && player.Distance(position, true) > minion.Distance(position, true) && minion.Distance(position, true) < target.Distance(position, true))
                     if (mouseJump)
@@ -349,19 +369,12 @@ namespace RoyalAkali
                         if (minion.Distance(position) < 200)
                             target = minion;
                     }
-                    else
-                    {
-                        Console.WriteLine("Distance T-M: " + minion.Distance(position) + "  Distance T-P: " + player.Distance(position));
-                        Console.WriteLine("Minion - X:" + minion.Position.X + "Y: " + minion.Position.Y + ",  player - X:" + player.Position.X + "Y: " + player.Position.Y + ",  position - X:" + position.X + "Y: " + position.Y);
+                    else 
                         target = minion;
-                    }
-            if (R.IsReady() && R.InRange(target.Position))
-                if (mouseJump)
-                {
-                    if (target.Distance(position) < 200)
+            if (R.IsReady() && R.InRange(target.Position) && !target.IsMe)
+                if (mouseJump && target.Distance(position) < 200)
                         R.CastOnUnit(target, packetCast);
-                }
-                else if (player.Distance(position, true) > target.Distance(position, true) && ((int)(player.Distance(position) / R.Range)) < ultiCount())
+                else if (player.Distance(position, true) > target.Distance(position, true))
                     R.CastOnUnit(target, packetCast);
 
         }
@@ -410,9 +423,11 @@ namespace RoyalAkali
 
         static void LoadMenu()
         {
+            /*
             Menu targetSelector = new Menu("Target Selector", "ts");
             SimpleTs.AddToMenu(targetSelector);
             menu.AddSubMenu(targetSelector);
+            */
 
             Menu SOW = new Menu("Orbwalker", "orbwalker");
             orbwalker = new Orbwalking.Orbwalker(SOW);
@@ -428,19 +443,22 @@ namespace RoyalAkali
             menu.SubMenu("harass").AddItem(new MenuItem("useQ", "Use Q in harass").SetValue(false));
             menu.SubMenu("harass").AddItem(new MenuItem("useE", "Use E in harass").SetValue(true));
 
-            menu.AddSubMenu(new Menu("Lane Clear", "laneclear"));
-            menu.SubMenu("laneclear").AddItem(new MenuItem("useQ", "Use Q in laneclear").SetValue(true));
+            menu.AddSubMenu(new Menu("Lane Clear/Farm", "laneclear"));
+            menu.SubMenu("laneclear").AddItem(new MenuItem("useQ", "Use Q for lasthit").SetValue(true));
             menu.SubMenu("laneclear").AddItem(new MenuItem("useE", "Use E in laneclear").SetValue(true));
             menu.SubMenu("laneclear").AddItem(new MenuItem("hitCounter", "Use E if will hit min").SetValue(new Slider(3, 1, 6)));
 
             menu.AddSubMenu(new Menu("Miscellaneous", "misc"));
+            menu.SubMenu("misc").AddItem(new MenuItem("0", "                       Ulti:"));
             menu.SubMenu("misc").AddItem(new MenuItem("escape", "Escape key").SetValue(new KeyBind('G', KeyBindType.Press)));
             menu.SubMenu("misc").AddItem(new MenuItem("RCounter", "Do not escape if R<").SetValue(new Slider(1, 1, 3)));
             menu.SubMenu("misc").AddItem(new MenuItem("RKillsteal", "Always try to KS with R").SetValue(false));
-            menu.SubMenu("misc").AddItem(new MenuItem("packets", "Cast spells using packets").SetValue(false));
-            menu.SubMenu("misc").AddItem(new MenuItem("", "                     Panic W:"));
+            menu.SubMenu("misc").AddItem(new MenuItem("1", "                      Panic W:"));
             menu.SubMenu("misc").AddItem(new MenuItem("PanicW", "If # of enemies around").SetValue(new Slider(1, 1, 5)));
             menu.SubMenu("misc").AddItem(new MenuItem("PanicWN", "If your %HP < ").SetValue(new Slider(25, 0, 100)));
+            menu.SubMenu("misc").AddItem(new MenuItem("2", "                      Other:"));
+            menu.SubMenu("misc").AddItem(new MenuItem("packets", "Cast spells using packets").SetValue(true));
+            //menu.SubMenu("misc").AddItem(new MenuItem("antipink", "Cast red trinket to diasble enemy pink").SetValue(true));
 
             var dmgAfterComboItem = new MenuItem("DamageAfterCombo", "Draw damage after a rotation").SetValue(true);
             Utility.HpBarDamageIndicator.DamageToUnit += hero => (float)IsRapeble(hero);
@@ -464,14 +482,16 @@ namespace RoyalAkali
 
         static void UpdateChecks()
         {
+            Game.PrintChat("--------------------------------------------------------------------------------");
             WebClient client = new WebClient();
             string version = client.DownloadString("https://raw.github.com/princer007/LeagueSharp/master/RoyalRapistAkali/version");
-            Game.PrintChat("--------------------------------------------------------------------------------");
             if (version.Remove(4).Equals(localVersion))
                 Game.PrintChat("== Your copy of Royal Rapist Akali is updated! GL & HF! ==");
             else
                 Game.PrintChat("== Royal Rapist Akali have an update. Get it ASAP! ==");
 
+            Utility.DelayAction.Add(300, () => Game.PrintChat("--------------------------------------------------------------------------------"));
+            Utility.DelayAction.Add(100, () => Game.PrintChat("Royal Rapist Akali by princer007 Loaded. More rape for the god of rape! ( ^_^)"));
         }
     }
 }
