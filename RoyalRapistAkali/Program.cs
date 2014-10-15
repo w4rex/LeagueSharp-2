@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using LeagueSharp;
@@ -19,7 +19,11 @@ namespace RoyalAkali
     {
         //////////////////////////////
         static readonly Obj_AI_Hero player = ObjectManager.Player;
+<<<<<<< HEAD
         static readonly string localVersion = "1.06";
+=======
+        static readonly string localVersion = "1.05";
+>>>>>>> origin/master
 
         static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
         static Orbwalking.Orbwalker orbwalker;
@@ -51,6 +55,17 @@ namespace RoyalAkali
             W = new Spell(SpellSlot.W, 700);
             E = new Spell(SpellSlot.E, 325);
             R = new Spell(SpellSlot.R, 800);
+
+            Game.PrintChat("--------------------------------------------------------------------------------");
+            UpdateChecks();
+            try
+            {
+                LoadMenu();
+            }
+            catch (Exception ex)
+            {
+                Game.PrintChat("Mistake occured when loading menu");
+            }
 
             SpellList = new List<Spell>() { Q, W, E, R };
 
