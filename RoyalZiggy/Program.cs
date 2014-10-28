@@ -178,7 +178,7 @@ namespace Ziggs
                             if (enemy.LastAggroTime < Game.Time - 7)
                             {
                                 Console.WriteLine("KS ping executed");
-                                Packet.S2C.Ping.Encoded(new Packet.S2C.Ping.Struct(hero.Position.X, hero.Position.Y, hero.NetworkId, 0, Packet.PingType.FallbackSound)).Process();
+                                Packet.S2C.Ping.Encoded(new Packet.S2C.Ping.Struct(hero.Position.X, hero.Position.Y, hero.NetworkId, 0, Packet.PingType.Fallback)).Process();
                                 enemy.LastAggroTime = Game.Time;
                             }
                         }
