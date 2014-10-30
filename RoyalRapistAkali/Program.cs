@@ -85,7 +85,7 @@ namespace RoyalAkali
         static void OnUpdate(EventArgs args)
         {
             packetCast = menu.Item("packets").GetValue<bool>();
-            orbwalker.SetAttacks(true);
+            orbwalker.SetAttack(true);
             if(menu.Item("RKillsteal").GetValue<bool>())
                 foreach (Obj_AI_Hero enemy in ObjectManager.Get<Obj_AI_Hero>())
                     if (enemy.IsEnemy && enemy.Distance(player) <= R.Range && player.GetSpellDamage(enemy, SpellSlot.R) > enemy.Health && ultiCount() > 0 && R.IsReady())
@@ -231,7 +231,7 @@ namespace RoyalAkali
             }
             else
             {
-                orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady());
+                orbwalker.SetAttack(!Q.IsReady() && !E.IsReady());
                 if (menu.SubMenu("combo").Item("useQ").GetValue<bool>())
                     CastQ(true);
                 if (menu.SubMenu("combo").Item("useE").GetValue<bool>())
@@ -263,7 +263,7 @@ namespace RoyalAkali
 
         static void RaperinoCasterino(Obj_AI_Hero victim)
         {
-            orbwalker.SetAttacks(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
+            orbwalker.SetAttack(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
             orbwalker.ForceTarget(victim);
             foreach (var item in player.InventoryItems)
                 switch ((int)item.Id)
