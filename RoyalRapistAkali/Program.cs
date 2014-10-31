@@ -158,7 +158,7 @@ namespace RoyalAkali
                 }
         }
 
-        static void CastQ(bool mode)
+        private static void CastQ(bool mode)
         {
             if (!Q.IsReady()) return;
             if (mode)
@@ -169,14 +169,34 @@ namespace RoyalAkali
             }
             else
             {
-                foreach (Obj_AI_Base minion in MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy, MinionOrderTypes.Health))
-                    if (hasBuff(minion, "AkaliMota") && Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(minion)) orbwalker.ForceTarget(minion);
+                foreach (
+                    Obj_AI_Base minion in
+                        MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy,
+                            MinionOrderTypes.Health))
+                    if (hasBuff(minion, "AkaliMota") &&
+                        Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(minion))
+                        orbwalker.ForceTarget(minion);
 
-                foreach (Obj_AI_Base minion in MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy, MinionOrderTypes.Health))
-                    if (HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 1000) < player.GetSpellDamage(minion, SpellSlot.Q) &&
-                        HealthPrediction.GetHealthPrediction(minion, (int)(E.Delay + (minion.Distance(player) / E.Speed)) * 1000) > 0 &&
+                foreach (
+                    Obj_AI_Base minion in
+                        MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy,
+                            MinionOrderTypes.Health))
+                    if (
+                        HealthPrediction.GetHealthPrediction(minion,
+                            (int) (E.Delay + (minion.Distance(player)/E.Speed))*1000) <
+                        player.GetSpellDamage(minion, SpellSlot.Q) &&
+                        HealthPrediction.GetHealthPrediction(minion,
+                            (int) (E.Delay + (minion.Distance(player)/E.Speed))*1000) > 0 &&
                         player.Distance(minion) > Orbwalking.GetRealAutoAttackRange(player))
                         Q.Cast(minion);
+
+                foreach (Obj_AI_Base minion in MinionManager.GetMinions(player.ServerPosition, Q.Range,
+                    MinionTypes.All,
+                    MinionTeam.Neutral, MinionOrderTypes.MaxHealth))
+                    if (player.Distance(minion) <= Q.Range)
+                        Q.Cast(minion);
+
+
             }
         }
 
@@ -195,6 +215,11 @@ namespace RoyalAkali
             else
             {   //Minions in E range                                                                            >= Value in menu
                 if (MinionManager.GetMinions(player.Position, E.Range, MinionTypes.All, MinionTeam.Enemy).Count >= menu.SubMenu("laneclear").Item("hitCounter").GetValue<Slider>().Value) E.Cast();
+                foreach (Obj_AI_Base minion in MinionManager.GetMinions(player.ServerPosition, Q.Range,
+                      MinionTypes.All,
+                      MinionTeam.Neutral, MinionOrderTypes.MaxHealth))
+                    if (player.Distance(minion) <= E.Range)
+                        E.Cast();
             }
         }
 
