@@ -190,7 +190,7 @@ namespace RoyalAkali
                 if (hasBuff(target, "AkaliMota") && !E.IsReady() && Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(target))
                     orbwalker.ForceTarget(target);
                 else
-                    E.Cast(target);
+                    E.Cast();
             }
             else
             {   //Minions in E range                                                                            >= Value in menu
