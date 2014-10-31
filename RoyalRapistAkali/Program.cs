@@ -304,7 +304,7 @@ namespace RoyalAkali
                         break;
                 }
             if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim, packetCast);
-            if (E.IsReady() && E.InRange(victim.Position)) E.CastIfWillHit(victim, 1, packetCast);
+            if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
             if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20), packetCast);
             if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim, packetCast);
             if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
