@@ -5,3 +5,7 @@ RoyalRapistAkali/bin/Release/SharpDX.Toolkit.xml
 *.dll
 RoyalRapistAkali/RoyalRapistAkali.suo
 RoyalRapistAkali/RoyalRapistAkali.sln
+RoyalRapistAkali/bin/Release/RoyalRapistAkali.exe.config
+RoyalRapistAkali/bin/Release/RoyalRapistAkali.vshost.exe.config
+RoyalRapistAkali/obj/x86/Debug/DesignTimeResolveAssemblyReferencesInput.cache
+RoyalRapistAkali/obj/x86/Debug/RoyalRapistAkali.csproj.FileListAbsolute.txt

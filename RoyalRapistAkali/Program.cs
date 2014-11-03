@@ -4,6 +4,7 @@ using System.Net;
 using LeagueSharp;
 using LeagueSharp.Common;
 using SharpDX;
+using LX_Orbwalker;
 using Color = System.Drawing.Color;
 
 namespace RoyalAkali
@@ -19,10 +20,9 @@ namespace RoyalAkali
     {
         //////////////////////////////
         static readonly Obj_AI_Hero player = ObjectManager.Player;
-        static readonly string localVersion = "1.06";
+        static readonly string localVersion = "1.07";
 
         static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
-        static Orbwalking.Orbwalker orbwalker;
 
         static Spell E;
         static Spell Q;
@@ -85,26 +85,26 @@ namespace RoyalAkali
         static void OnUpdate(EventArgs args)
         {
             packetCast = menu.Item("packets").GetValue<bool>();
-            orbwalker.SetAttack(true);
+            LXOrbwalker.SetAttack(true);
             if(menu.Item("RKillsteal").GetValue<bool>())
                 foreach (Obj_AI_Hero enemy in ObjectManager.Get<Obj_AI_Hero>())
                     if (enemy.IsEnemy && enemy.Distance(player) <= R.Range && player.GetSpellDamage(enemy, SpellSlot.R) > enemy.Health && ultiCount() > 0 && R.IsReady())
                         R.CastOnUnit(enemy);
 
-            switch (orbwalker.ActiveMode)
+            switch (LXOrbwalker.CurrentMode)
             {
-                case Orbwalking.OrbwalkingMode.Combo:
+                case LXOrbwalker.Mode.Combo:
                     RapeTime();
                     break;
 
-                case Orbwalking.OrbwalkingMode.Mixed:
+                case LXOrbwalker.Mode.Harass:
                     if (menu.SubMenu("harass").Item("useQ").GetValue<bool>())
                         CastQ(true);
                     if (menu.SubMenu("harass").Item("useE").GetValue<bool>())
                         CastE(true);
                     break;
 
-                case Orbwalking.OrbwalkingMode.LaneClear:
+                case LXOrbwalker.Mode.LaneClear:
                     if (menu.SubMenu("laneclear").Item("useQ").GetValue<bool>())
                         CastQ(false);
                     if (menu.SubMenu("laneclear").Item("useE").GetValue<bool>())
@@ -173,9 +173,9 @@ namespace RoyalAkali
                     Obj_AI_Base minion in
                         MinionManager.GetMinions(player.Position, Q.Range, MinionTypes.All, MinionTeam.Enemy,
                             MinionOrderTypes.Health))
-                    if (hasBuff(minion, "AkaliMota") &&
+                    if (HasBuff(minion, "AkaliMota") &&
                         Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(minion))
-                        orbwalker.ForceTarget(minion);
+                        LXOrbwalker.ForcedTarget = minion;
 
                 foreach (
                     Obj_AI_Base minion in
@@ -207,8 +207,8 @@ namespace RoyalAkali
             {
                 Obj_AI_Hero target = SimpleTs.GetTarget(E.Range, SimpleTs.DamageType.Magical);
                 if (target == null || !target.IsValidTarget(E.Range)) return;
-                if (hasBuff(target, "AkaliMota") && !E.IsReady() && Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(target))
-                    orbwalker.ForceTarget(target);
+                if (HasBuff(target, "AkaliMota") && !E.IsReady() && Orbwalking.GetRealAutoAttackRange(player) >= player.Distance(target))
+                    LXOrbwalker.ForcedTarget = target;
                 else
                     E.Cast();
             }
@@ -256,7 +256,7 @@ namespace RoyalAkali
             }
             else
             {
-                orbwalker.SetAttack(!Q.IsReady() && !E.IsReady());
+                LXOrbwalker.SetAttack(!Q.IsReady() && !E.IsReady());
                 if (menu.SubMenu("combo").Item("useQ").GetValue<bool>())
                     CastQ(true);
                 if (menu.SubMenu("combo").Item("useE").GetValue<bool>())
@@ -288,8 +288,8 @@ namespace RoyalAkali
 
         static void RaperinoCasterino(Obj_AI_Hero victim)
         {
-            orbwalker.SetAttack(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
-            orbwalker.ForceTarget(victim);
+            LXOrbwalker.SetAttack(!Q.IsReady() && !E.IsReady() && player.Distance(victim) < 800f);
+            LXOrbwalker.ForcedTarget = victim;
             foreach (var item in player.InventoryItems)
                 switch ((int)item.Id)
                 {
@@ -303,9 +303,9 @@ namespace RoyalAkali
                         if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready) item.UseItem(victim);
                         break;
                 }
-            if (Q.IsReady() && Q.InRange(victim.Position)) Q.Cast(victim, packetCast);
+            if (Q.IsReady() && Q.InRange(victim.Position) && !HasBuff(victim, "AkaliMota")) Q.Cast(victim, packetCast);
             if (E.IsReady() && E.InRange(victim.Position)) E.Cast();
-            if (W.IsReady() && W.InRange(victim.Position) && !(hasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20), packetCast);
+            if (W.IsReady() && W.InRange(victim.Position) && !(HasBuff(victim, "AkaliMota") && player.Distance(victim) > Orbwalking.GetRealAutoAttackRange(player))) W.Cast(V2E(player.Position, victim.Position, player.Distance(victim) + W.Width * 2 - 20), packetCast);
             if (R.IsReady() && R.InRange(victim.Position)) R.Cast(victim, packetCast);
             if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready) player.SummonerSpellbook.CastSpell(IgniteSlot, victim);
         }
@@ -318,7 +318,7 @@ namespace RoyalAkali
             if (Q.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.Q) + player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35 * Q.Level + 0.5 * player.FlatMagicDamageMod));
             if (E.IsReady()) comboDamage += player.GetSpellDamage(victim, SpellSlot.E);
 
-            if (hasBuff(victim, "AkaliMota")) comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35 * Q.Level + 0.5 * player.FlatMagicDamageMod));
+            if (HasBuff(victim, "AkaliMota")) comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, (45 + 35 * Q.Level + 0.5 * player.FlatMagicDamageMod));
             //comboDamage += player.GetAutoAttackDamage(victim, true);
 
             comboDamage += player.CalcDamage(victim, Damage.DamageType.Magical, CalcPassiveDmg());
@@ -328,7 +328,7 @@ namespace RoyalAkali
                 if ((int)item.Id == 3128)
                     if (player.Spellbook.CanUseSpell((SpellSlot)item.Slot) == SpellState.Ready)
                         comboDamage *= 1.2;
-            if (hasBuff(victim, "deathfiregraspspell")) comboDamage *= 1.2;
+            if (HasBuff(victim, "deathfiregraspspell")) comboDamage *= 1.2;
 
             if (UC > 0) comboDamage += jumpCount > 0 ? player.GetSpellDamage(victim, SpellSlot.R) * jumpCount : player.GetSpellDamage(victim, SpellSlot.R);
             if (IgniteSlot != SpellSlot.Unknown && player.SummonerSpellbook.CanUseSpell(IgniteSlot) == SpellState.Ready)
@@ -433,7 +433,7 @@ namespace RoyalAkali
         {
             return from.To2D() + distance * Vector3.Normalize(direction - from).To2D();
         }
-        static bool hasBuff(Obj_AI_Base target, string buffName)
+        static bool HasBuff(Obj_AI_Base target, string buffName)
         {
             foreach (BuffInstance buff in target.Buffs)
                 if (buff.Name == buffName) return true;
@@ -455,8 +455,8 @@ namespace RoyalAkali
             */
 
             Menu SOW = new Menu("Orbwalker", "orbwalker");
-            orbwalker = new Orbwalking.Orbwalker(SOW);
             menu.AddSubMenu(SOW);
+            LXOrbwalker.AddToMenu(SOW);
 
             menu.AddSubMenu(new Menu("Combo Options", "combo"));
             menu.SubMenu("combo").AddItem(new MenuItem("useQ", "Use Q in combo").SetValue(true));
