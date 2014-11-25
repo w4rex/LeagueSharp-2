@@ -59,9 +59,6 @@
     <Reference Include="LeagueSharp.Common">
       <HintPath>C:\Users\User\Desktop\LeagueSharperino\\System\LeagueSharp.Common.dll</HintPath>
     </Reference>
-    <Reference Include="LX-Orbwalker">
-      <HintPath>C:\Users\User\Desktop\LeagueSharperino\\System\LX-Orbwalker.dll</HintPath>
-    </Reference>
     <Reference Include="SharpDX">
       <HintPath>C:\Users\User\Desktop\LeagueSharperino\\System\SharpDX.dll</HintPath>
     </Reference>
