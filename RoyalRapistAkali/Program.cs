@@ -19,7 +19,7 @@ namespace RoyalAkali
     {
         //////////////////////////////
         static readonly Obj_AI_Hero player = ObjectManager.Player;
-        static readonly string localVersion = "1.06";
+        static readonly string localVersion = "1.09";
 
         static Menu menu = new Menu("Royal Rapist Akali", "Akali", true);
         static Orbwalking.Orbwalker orbwalker;
