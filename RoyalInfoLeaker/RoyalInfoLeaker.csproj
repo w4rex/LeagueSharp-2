@@ -5,14 +5,13 @@
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{94DA4621-F9C5-4698-9454-2119F710804C}</ProjectGuid>
+    <ProjectGuid>{42CCD013-D0DF-4167-9ACC-937946E7F34C}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ConsoleApplication1</RootNamespace>
-    <AssemblyName>Ziggs</AssemblyName>
+    <AssemblyName>RoyalInfoLeaker</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <TargetFrameworkProfile>
-    </TargetFrameworkProfile>
+    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
@@ -62,6 +61,9 @@
     <Reference Include="SharpDX">
       <HintPath>C:\Users\User\Desktop\LeagueSharperino\\System\SharpDX.dll</HintPath>
     </Reference>
+    <Reference Include="SharpDX.Toolkit">
+      <HintPath>C:\Users\User\Desktop\LeagueSharperino\\System\SharpDX.Toolkit.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
@@ -96,9 +98,6 @@
       <ProductName>Установщик Windows 3.1</ProductName>
       <Install>true</Install>
     </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="app.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
