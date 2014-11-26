@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using SharpDX;
 using Color = System.Drawing.Color;
 
-namespace RoyalAsheHelper
+namespace RoyalInfoLeaker
 {
     class Program
     {
