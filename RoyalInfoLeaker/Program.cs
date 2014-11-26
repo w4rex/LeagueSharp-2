@@ -22,6 +22,7 @@ namespace RoyalAsheHelper
         {
 
             foreach (Obj_AI_Hero obj in ObjectManager.Get<Obj_AI_Hero>())
+                if(!obj.IsMe)
                     bitchez.Add(new Bitch(obj));
             Game.OnGameSendPacket += OnSendPacket;
             Game.OnGameUpdate += Game_OnGameUpdate;
