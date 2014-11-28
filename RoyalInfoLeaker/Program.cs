@@ -10,7 +10,7 @@ namespace RoyalInfoLeaker
     class Program
     {
         private static readonly Obj_AI_Hero player = ObjectManager.Player;
-        //private static Menu menu;
+        private static Menu menu;
         private static List<Bitch> bitchez = new List<Bitch>();
         
 
@@ -73,7 +73,7 @@ namespace RoyalInfoLeaker
         {
 
         }
-        /*
+        
         private static void LoadMenu()
         {
             // Initialize the menu
@@ -83,7 +83,7 @@ namespace RoyalInfoLeaker
             // Finalize menu
             menu.AddToMainMenu();
             Console.WriteLine("Menu finalized");
-        }*/
+        }
     }
     class Bitch
     {
